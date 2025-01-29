@@ -1,31 +1,12 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:demo_text_extractor/screens/roi_selection.dart';  
-import 'package:demo_text_extractor/Services/api_fast.dart';  
+import 'package:image/image.dart' as img;
+import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/const.dart';
 
-class IconButtonForText extends StatelessWidget {
-  const IconButtonForText({
-    super.key,
-    required this.field,
-    required this.onExtract,
-  });
-
-  final String field;
-  final Function(String) onExtract;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.text_fields, color: Colors.blueGrey),
-      onPressed: () => onExtract(field),
-    );
-  }
-}
-
-// ignore: use_key_in_widget_constructors
 class CustomForm extends StatefulWidget {
+  const CustomForm({super.key});
+
   @override
   // ignore: library_private_types_in_public_api
   _CustomFormState createState() => _CustomFormState();
@@ -40,71 +21,130 @@ class _CustomFormState extends State<CustomForm> {
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
 
-  // ignore: unused_element
-  void _clearField(TextEditingController controller) {
-    controller.clear();
-  }
+  // Uint8List? selectedImageBytes;
+  Rect? _roiRect;
+  Offset? _startDrag;
+  bool isCropping = false;
 
-  // Function to handle ROI selection and text extraction
   void _onROISelected(String field) {
-    if (selectedImageBytes == null || selectedImageBytes!.isEmpty) {
+    if (selectedImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please upload an Image first')),
       );
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ROISelection(
-          onROISelected: (croppedImage) {
-            _extractTextFromImage(croppedImage, field);
-          },
-          imageBytes: selectedImageBytes!,
-        ),
-      ),
-    );
-  }
-
-  // Extract text from cropped image and update the corresponding field
-  Future<void> _extractTextFromImage(Uint8List croppedImage, String field) async {
- OCRService apiService =OCRService();
-  String? extractedText = await apiService.extractTextFromImage(croppedImage);
-
-  if (extractedText != null && extractedText.isNotEmpty) {
     setState(() {
-      // Update the appropriate field based on the selected field
-      switch (field) {
-        case "Name":
-          _nameController.text = extractedText;
-          break;
-        case "Pincode":
-          _pincodeController.text = extractedText;
-          break;
-        case "Phone":
-          _phoneController.text = extractedText;
-          break;
-        case "Gender":
-          _genderController.text = extractedText;
-          break;
-        case "Date of Birth":
-          _dobController.text = extractedText;
-          break;
-        case "Address":
-          _addressController.text = extractedText;
-          break;
-        default:
-          break;
-      }
+      _roiRect = null;
     });
-  } else {
-    // ignore: use_build_context_synchronously
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Failed to extract text.')),
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Select ROI for $field'),
+          content: GestureDetector(
+            onPanStart: (details) {
+              setState(() {
+                _startDrag = details.localPosition;
+                _roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+              });
+            },
+            onPanUpdate: (details) {
+              setState(() {
+                _roiRect = Rect.fromPoints(_startDrag!, details.localPosition);
+              });
+            },
+            child: Stack(
+              children: [
+                Image.memory(selectedImageBytes!, fit: BoxFit.contain),
+                if (_roiRect != null)
+                  Positioned.fromRect(
+                    rect: _roiRect!,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.red, width: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                _extractTextFromImage(field);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Extract'),
+            ),
+          ],
+        );
+      },
     );
   }
-}
+
+  Future<void> _extractTextFromImage(String field) async {
+    if (_roiRect == null || selectedImageBytes == null) return;
+
+    setState(() => isCropping = true);
+
+    final croppedImage = await _cropImage(selectedImageBytes!, _roiRect!);
+
+    OCRService apiService = OCRService();
+    String? extractedText = await apiService.extractTextFromImage(croppedImage);
+
+    if (extractedText.isNotEmpty) {
+      setState(() {
+        switch (field) {
+          case "Name":
+            _nameController.text = extractedText;
+            break;
+          case "Pincode":
+            _pincodeController.text = extractedText;
+            break;
+          case "Phone":
+            _phoneController.text = extractedText;
+            break;
+          case "Gender":
+            _genderController.text = extractedText;
+            break;
+          case "Date of Birth":
+            _dobController.text = extractedText;
+            break;
+          case "Address":
+            _addressController.text = extractedText;
+            break;
+          default:
+            break;
+        }
+      });
+    } else {
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to extract text...')),
+      );
+    }
+
+    setState(() => isCropping = false);
+  }
+
+  Future<Uint8List> _cropImage(Uint8List imageBytes, Rect roiRect) async {
+    final img.Image? decodedImage = img.decodeImage(imageBytes);
+    if (decodedImage == null) return imageBytes;
+
+    int x = roiRect.left.toInt();
+    int y = roiRect.top.toInt();
+    int width = roiRect.width.toInt();
+    int height = roiRect.height.toInt();
+
+    img.Image cropped = img.copyCrop(decodedImage, x: x, y: y, width: width, height: height);
+    return Uint8List.fromList(img.encodePng(cropped));
+  }
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
@@ -122,133 +162,13 @@ class _CustomFormState extends State<CustomForm> {
         key: _formKey,
         child: ListView(
           children: [
-            // Name Field
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Name'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter name';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                IconButtonForText(
-                  field: 'Name',
-                  onExtract: _onROISelected,
-                ),
-              ],
-            ),
-            // Pincode Field
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _pincodeController,
-                    decoration: const InputDecoration(labelText: 'Pincode'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter pincode';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                IconButtonForText(
-                  field: 'Pincode',
-                  onExtract: _onROISelected,
-                ),
-              ],
-            ),
-            // Phone Field
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(labelText: 'Phone'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter phone';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                IconButtonForText(
-                  field: 'Phone',
-                  onExtract: _onROISelected,
-                ),
-              ],
-            ),
-            // Gender Field
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _genderController,
-                    decoration: const InputDecoration(labelText: 'Gender'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter gender';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                IconButtonForText(
-                  field: 'Gender',
-                  onExtract: _onROISelected,
-                ),
-              ],
-            ),
-            // Date of Birth Field
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _dobController,
-                    decoration: const InputDecoration(labelText: 'Date of Birth'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter date of birth';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                IconButtonForText(
-                  field: 'Date of Birth',
-                  onExtract: _onROISelected,
-                ),
-              ],
-            ),
-            // Address Field
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _addressController,
-                    decoration: const InputDecoration(labelText: 'Address'),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter address';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                IconButtonForText(
-                  field: 'Address',
-                  onExtract: _onROISelected,
-                ),
-              ],
-            ),
-             SizedBox(height: 20),
+            _buildField("Name", _nameController),
+            _buildField("Pincode", _pincodeController),
+            _buildField("Phone", _phoneController),
+            _buildField("Gender", _genderController),
+            _buildField("Date of Birth", _dobController),
+            _buildField("Address", _addressController),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _submitForm,
               child: const Text('Submit'),
@@ -256,6 +176,29 @@ class _CustomFormState extends State<CustomForm> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildField(String fieldName, TextEditingController controller) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextFormField(
+            controller: controller,
+            decoration: InputDecoration(labelText: fieldName),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter $fieldName';
+              }
+              return null;
+            },
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.text_fields, color: Colors.blueGrey),
+          onPressed: () => _onROISelected(fieldName),
+        ),
+      ],
     );
   }
 }

@@ -15,8 +15,7 @@ class ImageUploader extends StatefulWidget {
 }
 
 class _ImageUploaderState extends State<ImageUploader> {
-  // Uint8List? selectedImageBytes;
-  bool _showROI = false;
+  final bool _showROI = false;
   String? extractedText;
 
   // Image picker function
@@ -45,19 +44,12 @@ class _ImageUploaderState extends State<ImageUploader> {
     });
   }
 
-  // ignore: unused_element
-  void _toggleROISelection() {
-    setState(() {
-      _showROI = !_showROI;
-    });
-  }
-
   // Extract text using the backend
   void _extractText(Uint8List selectedImageBytes) async {
   OCRService apiService = OCRService();
   String? extractedText = await apiService.extractTextFromImage(selectedImageBytes);
   setState(() {
-    extractedText = extractedText ?? "Failed to extract text.";
+    extractedText = extractedText;
   });
 }
 
