@@ -11,10 +11,10 @@ class ImageUploader extends StatefulWidget {
 
   @override
   // ignore: library_private_types_in_public_api
-  _ImageUploaderState createState() => _ImageUploaderState();
+  ImageUploaderState createState() => ImageUploaderState();
 }
 
-class _ImageUploaderState extends State<ImageUploader> {
+class ImageUploaderState extends State<ImageUploader> {
   final bool _showROI = false;
   String? extractedText;
 
@@ -37,20 +37,19 @@ class _ImageUploaderState extends State<ImageUploader> {
     }
   }
 
-  void _clearImage() {
+  void _clearImage() {  
     setState(() {
       selectedImageBytes = null;  // This now clears the global variable
       extractedText = null;
     });
   }
 
-  // Extract text using the backend
-  void _extractText(Uint8List selectedImageBytes) async {
-  OCRService apiService = OCRService();
-  String? extractedText = await apiService.extractTextFromImage(selectedImageBytes);
-  setState(() {
-    extractedText = extractedText;
-  });
+  void extractText(Uint8List selectedImageBytes) async {
+    OCRService apiService = OCRService();
+    String? extractedText = await apiService.extractTextFromImage(selectedImageBytes);
+    setState(() {
+      extractedText = extractedText;
+    });
 }
 
 
@@ -78,7 +77,7 @@ class _ImageUploaderState extends State<ImageUploader> {
                       ? ROISelection(
                           imageBytes: selectedImageBytes!,
                           onROISelected: (croppedImage) {
-                            _extractText(croppedImage);
+                            extractText(croppedImage);
                           },
                         )
                       : Image.memory(selectedImageBytes!),

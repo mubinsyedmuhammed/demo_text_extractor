@@ -1,6 +1,6 @@
 import 'dart:typed_data';
+import 'package:demo_text_extractor/screens/roi_selection.dart';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/const.dart';
 
@@ -21,10 +21,7 @@ class _CustomFormState extends State<CustomForm> {
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
 
-  // Uint8List? selectedImageBytes;
-  Rect? _roiRect;
-  Offset? _startDrag;
-  bool isCropping = false;
+  // final Rect _roiRect = Rect.zero;
 
   void _onROISelected(String field) {
     if (selectedImageBytes == null) {
@@ -34,67 +31,24 @@ class _CustomFormState extends State<CustomForm> {
       return;
     }
 
-    setState(() {
-      _roiRect = null;
-    });
-
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text('Select ROI for $field'),
-          content: GestureDetector(
-            onPanStart: (details) {
-              setState(() {
-                _startDrag = details.localPosition;
-                _roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
-              });
+          content: ROISelection(
+            imageBytes: selectedImageBytes!,
+            onROISelected: (croppedImage) {
+              _extractTextFromImage(field, croppedImage);
+              Navigator.of(context).pop();
             },
-            onPanUpdate: (details) {
-              setState(() {
-                _roiRect = Rect.fromPoints(_startDrag!, details.localPosition);
-              });
-            },
-            child: Stack(
-              children: [
-                Image.memory(selectedImageBytes!, fit: BoxFit.contain),
-                if (_roiRect != null)
-                  Positioned.fromRect(
-                    rect: _roiRect!,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.red, width: 2),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                _extractTextFromImage(field);
-                Navigator.of(context).pop();
-              },
-              child: const Text('Extract'),
-            ),
-          ],
         );
       },
     );
   }
 
-  Future<void> _extractTextFromImage(String field) async {
-    if (_roiRect == null || selectedImageBytes == null) return;
-
-    setState(() => isCropping = true);
-
-    final croppedImage = await _cropImage(selectedImageBytes!, _roiRect!);
-
+  Future<void> _extractTextFromImage(String field, Uint8List croppedImage) async {
     OCRService apiService = OCRService();
     String? extractedText = await apiService.extractTextFromImage(croppedImage);
 
@@ -119,8 +73,6 @@ class _CustomFormState extends State<CustomForm> {
           case "Address":
             _addressController.text = extractedText;
             break;
-          default:
-            break;
         }
       });
     } else {
@@ -129,21 +81,6 @@ class _CustomFormState extends State<CustomForm> {
         const SnackBar(content: Text('Failed to extract text...')),
       );
     }
-
-    setState(() => isCropping = false);
-  }
-
-  Future<Uint8List> _cropImage(Uint8List imageBytes, Rect roiRect) async {
-    final img.Image? decodedImage = img.decodeImage(imageBytes);
-    if (decodedImage == null) return imageBytes;
-
-    int x = roiRect.left.toInt();
-    int y = roiRect.top.toInt();
-    int width = roiRect.width.toInt();
-    int height = roiRect.height.toInt();
-
-    img.Image cropped = img.copyCrop(decodedImage, x: x, y: y, width: width, height: height);
-    return Uint8List.fromList(img.encodePng(cropped));
   }
 
   void _submitForm() {
@@ -195,7 +132,7 @@ class _CustomFormState extends State<CustomForm> {
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.text_fields, color: Colors.blueGrey),
+          icon: const Icon(Icons.crop, color: Colors.blueGrey),
           onPressed: () => _onROISelected(fieldName),
         ),
       ],

@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
-
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
   final Function(Uint8List) onROISelected;
@@ -21,43 +20,54 @@ class ROISelection extends StatefulWidget {
 
 class _ROISelectionState extends State<ROISelection> {
   Rect _roiRect = Rect.zero;
-  bool _isSelecting = false;
   Offset _startPoint = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanStart: (details) {
-        setState(() {
-          _isSelecting = true;
-          _startPoint = details.localPosition;
-        });
-      },
-      onPanUpdate: (details) {
-        setState(() {
-          _roiRect = Rect.fromPoints(
-            _startPoint,
-            details.localPosition,
-          );
-        });
-      },
-      onPanEnd: (details) {
-        setState(() {
-          _isSelecting = false;
-        });
-        if (_roiRect.width > 0 && _roiRect.height > 0) {
-          widget.onROISelected(_cropImage());
-        }
-      },
+    return Center(
       child: Stack(
         children: [
-          Image.memory(widget.imageBytes),
-          if (_isSelecting)
-            Positioned.fromRect(
-              rect: _roiRect,
+          GestureDetector(
+            onPanStart: (details) {
+              setState(() {
+                _startPoint = details.localPosition;
+                _roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+              });
+            },
+            onPanUpdate: (details) {
+              setState(() {
+                _roiRect = Rect.fromPoints(_startPoint, details.localPosition);
+              });
+            },
+            onPanEnd: (details) async {
+              if (_roiRect.width > 10 && _roiRect.height > 10) {
+                final croppedImageBytes = await _cropImage();
+                if (croppedImageBytes != null) {
+                  widget.onROISelected(croppedImageBytes);
+                } else {
+                  // ignore: use_build_context_synchronously
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to crop the image')),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please select a valid ROI')),
+                );
+              }
+            },
+            child: Image.memory(widget.imageBytes),
+          ),
+          if (_roiRect.width > 0 && _roiRect.height > 0)
+            Positioned(
+              left: _roiRect.left,
+              top: _roiRect.top,
+              width: _roiRect.width,
+              height: _roiRect.height,
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.red, width: 2),
+                  color: Colors.transparent,
                 ),
               ),
             ),
@@ -66,18 +76,36 @@ class _ROISelectionState extends State<ROISelection> {
     );
   }
 
-  Uint8List _cropImage() {
-  final img.Image image = img.decodeImage(widget.imageBytes)!;
+  Future<Uint8List?> _cropImage() async {
+    final image = img.decodeImage(widget.imageBytes);
+    if (image == null) {
+      log('Failed to decode image');
+      return null;
+    }
 
-  // Calculate the cropping area based on the selected ROI rect
-  final int x = _roiRect.left.toInt();
-  final int y = _roiRect.top.toInt();
-  final int width = _roiRect.width.toInt();
-  final int height = _roiRect.height.toInt();
+    int x = _roiRect.left.toInt();
+    int y = _roiRect.top.toInt();
+    int width = _roiRect.width.toInt();
+    int height = _roiRect.height.toInt();
 
-  final img.Image croppedImage = img.copyCrop(image,x: x, y: y, width:width, height: height);
-  log('Cropped image');
-  // Encode the cropped image back to Uint8List
-  return Uint8List.fromList(img.encodeJpg(croppedImage));
-}
+    log('Selected ROI: $x:$y:$width:$height');
+
+    x = x.clamp(0, image.width);
+    y = y.clamp(0, image.height);
+    width = width.clamp(0, image.width - x);
+    height = height.clamp(0, image.height - y);
+
+    if (width <= 0 || height <= 0) {
+      log('Invalid crop dimensions: $x:$y:$width:$height');
+      return null;
+    }
+
+    // Crop image asynchronously
+    final img.Image croppedImage = img.copyCrop(image, x: x, y: y, width: width, height: height);
+
+    // log(croppedImage.isEmpty as String);
+
+    // Return the cropped image in PNG format
+    return Uint8List.fromList(img.encodePng(croppedImage));
+  }
 }

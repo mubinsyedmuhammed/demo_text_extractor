@@ -6,11 +6,11 @@ import 'package:http/http.dart' as http;
 class OCRService {
   final String apiUrl = "http://127.0.0.1:8000/extract_text/";
 
-  Future<String> extractText(Uint8List imageBytes) async {
+  Future<String> extractText(Uint8List croppedImage) async {
     var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
 
     try {
-      request.files.add(http.MultipartFile.fromBytes('file', imageBytes, filename: 'image.jpg'));
+      request.files.add(http.MultipartFile.fromBytes('file', croppedImage, filename: 'image.jpg'));
 
       var response = await request.send();
 
@@ -33,3 +33,5 @@ class OCRService {
     return await extractText(croppedImage); // Call extractText with the cropped image
   }
 }
+
+
