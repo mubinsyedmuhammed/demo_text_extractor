@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:demo_text_extractor/screens/roi_selection.dart';  
-import 'package:demo_text_extractor/Services/api_fast.dart';  
-import 'package:demo_text_extractor/const.dart';
+import 'package:text_extractor/screens/roi_selection.dart';  
+import 'package:text_extractor/Services/api_fast.dart';  
+import 'package:text_extractor/const.dart';
 
 class IconButtonForText extends StatelessWidget {
   const IconButtonForText({

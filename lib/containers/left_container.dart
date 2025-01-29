@@ -1,5 +1,5 @@
 // ignore: depend_on_referenced_packages
-import 'package:demo_text_extractor/services/text_form.dart';
+import 'package:text_extractor/services/text_form.dart';
 import 'package:flutter/material.dart';
 
 class LeftContainer extends StatelessWidget {

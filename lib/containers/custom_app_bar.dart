@@ -1,4 +1,4 @@
-import 'package:demo_text_extractor/screens/home_screen.dart';
+import 'package:text_extractor/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {

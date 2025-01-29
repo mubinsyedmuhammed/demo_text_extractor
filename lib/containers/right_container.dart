@@ -1,5 +1,5 @@
 // ignore: unused_import
-import 'package:demo_text_extractor/Services/image_uploader.dart';
+import 'package:text_extractor/Services/image_uploader.dart';
 import 'package:flutter/material.dart';
 
 class RightContainer extends StatelessWidget {

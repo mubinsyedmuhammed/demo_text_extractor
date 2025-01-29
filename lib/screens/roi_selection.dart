@@ -74,7 +74,7 @@ class _ROISelectionState extends State<ROISelection> {
   final int width = _roiRect.width.toInt();
   final int height = _roiRect.height.toInt();
 
-  final img.Image croppedImage = img.copyCrop(image, x, y, width, height);
+  final img.Image croppedImage = img.copyCrop(image, x: x, y: y, width: width, height: height);
 
   // Encode the cropped image back to Uint8List
   return Uint8List.fromList(img.encodeJpg(croppedImage));
