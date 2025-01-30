@@ -40,7 +40,14 @@ class _CustomFormState extends State<CustomForm> {
             imageBytes: selectedImageBytes!,
             onROISelected: (croppedImage) {
               _extractTextFromImage(field, croppedImage);
-              Navigator.of(context).pop();
+              setState(() {
+                croppedImages =croppedImage;
+                   Navigator.of(context).pop();
+              });
+
+
+
+           
             },
           ),
         );
@@ -48,7 +55,8 @@ class _CustomFormState extends State<CustomForm> {
     );
   }
 
-  Future<void> _extractTextFromImage(String field, Uint8List croppedImage) async {
+  Future<void> _extractTextFromImage(
+      String field, Uint8List croppedImage) async {
     OCRService apiService = OCRService();
     String? extractedText = await apiService.extractTextFromImage(croppedImage);
 

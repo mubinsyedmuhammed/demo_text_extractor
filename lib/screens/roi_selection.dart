@@ -19,7 +19,7 @@ class ROISelection extends StatefulWidget {
 }
 
 class _ROISelectionState extends State<ROISelection> {
-  Rect _roiRect = Rect.zero;
+  Rect roiRect = Rect.zero;
   Offset _startPoint = Offset.zero;
 
   @override
@@ -31,16 +31,16 @@ class _ROISelectionState extends State<ROISelection> {
             onPanStart: (details) {
               setState(() {
                 _startPoint = details.localPosition;
-                _roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+                roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
               });
             },
             onPanUpdate: (details) {
               setState(() {
-                _roiRect = Rect.fromPoints(_startPoint, details.localPosition);
+                roiRect = Rect.fromPoints(_startPoint, details.localPosition);
               });
             },
             onPanEnd: (details) async {
-              if (_roiRect.width > 10 && _roiRect.height > 10) {
+              if (roiRect.width > 10 && roiRect.height > 10) {
                 final croppedImageBytes = await _cropImage();
                 if (croppedImageBytes != null) {
                   widget.onROISelected(croppedImageBytes);
@@ -58,16 +58,15 @@ class _ROISelectionState extends State<ROISelection> {
             },
             child: Image.memory(widget.imageBytes),
           ),
-          if (_roiRect.width > 0 && _roiRect.height > 0)
+          if (roiRect.width > 0 && roiRect.height > 0)
             Positioned(
-              left: _roiRect.left,
-              top: _roiRect.top,
-              width: _roiRect.width,
-              height: _roiRect.height,
+              left: roiRect.left,
+              top: roiRect.top,
+              width: roiRect.width,
+              height: roiRect.height,
               child: Container(
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                  color: Colors.transparent,
+                  border: Border.all(color: Colors.black, width: 1.5),
                 ),
               ),
             ),
@@ -83,29 +82,45 @@ class _ROISelectionState extends State<ROISelection> {
       return null;
     }
 
-    int x = _roiRect.left.toInt();
-    int y = _roiRect.top.toInt();
-    int width = _roiRect.width.toInt();
-    int height = _roiRect.height.toInt();
+    // Get the actual image dimensions
+    int imageWidth = image.width;
+    int imageHeight = image.height;
 
-    log('Selected ROI: $x:$y:$width:$height');
-
-    x = x.clamp(0, image.width);
-    y = y.clamp(0, image.height);
-    width = width.clamp(0, image.width - x);
-    height = height.clamp(0, image.height - y);
-
-    if (width <= 0 || height <= 0) {
-      log('Invalid crop dimensions: $x:$y:$width:$height');
+    // Get the displayed image size
+    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) {
+      log('Failed to get render box');
       return null;
     }
 
-    // Crop image asynchronously
+    Size displayedSize = renderBox.size;
+
+    // Scale ROI coordinates to match actual image dimensions
+    double scaleX = imageWidth / displayedSize.width;
+    double scaleY = imageHeight / displayedSize.height;
+
+    int x = (roiRect.left * scaleX).toInt();
+    int y = (roiRect.top * scaleY).toInt();
+    int width = (roiRect.width * scaleX).toInt();
+    int height = (roiRect.height * scaleY).toInt();
+
+    log('Selected ROI (scaled): $x:$y:$width:$height');
+
+    // Clamp values to avoid errors
+    x = x.clamp(0, imageWidth);
+    y = y.clamp(0, imageHeight);
+    width = width.clamp(0, imageWidth - x);
+    height = height.clamp(0, imageHeight - y);
+
+    if (width <= 0 || height <= 0) {
+      log('Invalid crop dimensions after scaling: $x:$y:$width:$height');
+      return null;
+    }
+
+    // Crop the image
     final img.Image croppedImage = img.copyCrop(image, x: x, y: y, width: width, height: height);
 
-    // log(croppedImage.isEmpty as String);
-
-    // Return the cropped image in PNG format
+    // Convert to PNG format
     return Uint8List.fromList(img.encodePng(croppedImage));
   }
 }

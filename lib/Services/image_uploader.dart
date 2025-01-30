@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:demo_text_extractor/screens/cropp.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/screens/roi_selection.dart';
 import '/const.dart';
+
 
 class ImageUploader extends StatefulWidget {
   const ImageUploader({super.key});
@@ -15,7 +17,7 @@ class ImageUploader extends StatefulWidget {
 }
 
 class ImageUploaderState extends State<ImageUploader> {
-  final bool _showROI = false;
+  bool _showROI = false;  // Show ROI selection when image is tapped
   String? extractedText;
 
   // Image picker function
@@ -37,6 +39,7 @@ class ImageUploaderState extends State<ImageUploader> {
     }
   }
 
+  // ignore: unused_element
   void _clearImage() {  
     setState(() {
       selectedImageBytes = null;  // This now clears the global variable
@@ -51,7 +54,6 @@ class ImageUploaderState extends State<ImageUploader> {
       extractedText = extractedText;
     });
 }
-
 
   @override
   Widget build(BuildContext context) {
@@ -73,14 +75,48 @@ class ImageUploaderState extends State<ImageUploader> {
           : Stack(
               children: [
                 Center(
-                  child: _showROI
-                      ? ROISelection(
-                          imageBytes: selectedImageBytes!,
-                          onROISelected: (croppedImage) {
-                            extractText(croppedImage);
-                          },
-                        )
-                      : Image.memory(selectedImageBytes!),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        // Toggle ROI selection when the image is tapped
+                        _showROI = !_showROI;
+                      });
+                    },
+                    child: _showROI
+                        ? ROISelection(
+                            imageBytes: selectedImageBytes!,
+                            onROISelected: (croppedImage) {
+                              extractText(croppedImage);
+                            },
+                          )
+                        : SizedBox(
+                            width: double.infinity,
+                            height: double.infinity,
+                            child: Image.memory(
+                              selectedImageBytes!,
+                              fit: BoxFit.contain, // Ensures the image scales properly
+                            ),
+                          ),
+                  ),
+                ),
+                Positioned(
+                  top: 25,
+                  left: 3,
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CroppedImageShow(image: croppedImages),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.image, color: Colors.black),
+                    ),
+                  ),
                 ),
                 Positioned(
                   top: 25,
