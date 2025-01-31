@@ -10,6 +10,7 @@ class OCRService {
     var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
 
     try {
+      log(";;;;;;;;;;;;;;;;;;${croppedImage}");
       request.files.add(http.MultipartFile.fromBytes('file', croppedImage, filename: 'image.jpg'));
 
       var response = await request.send();

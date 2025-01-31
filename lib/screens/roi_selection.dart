@@ -1,7 +1,11 @@
 import 'dart:developer';
 import 'dart:typed_data';
+import 'package:demo_text_extractor/Services/api_fast.dart';
+import 'package:demo_text_extractor/Services/getx.dart';
+import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:provider/provider.dart';
 
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
@@ -17,7 +21,6 @@ class ROISelection extends StatefulWidget {
   // ignore: library_private_types_in_public_api
   _ROISelectionState createState() => _ROISelectionState();
 }
-
 class _ROISelectionState extends State<ROISelection> {
   Rect roiRect = Rect.zero;
   Offset _startPoint = Offset.zero;
@@ -46,68 +49,87 @@ class _ROISelectionState extends State<ROISelection> {
       });
     }
   }
+Future<void> _onPanEndHandler(RoiProvider provider) async {
+  if (roiRect.width > 10 && roiRect.height > 10) {
+    final croppedImageBytes = await _cropImage();
+    if (croppedImageBytes != null) {
+      widget.onROISelected(croppedImageBytes);
+
+      OCRService apiService = OCRService();
+      String? extractedText = await apiService.extractTextFromImageOcr(croppedImageBytes);
+      log("Extracted text: $extractedText");
+
+      if (extractedText != null && extractedText.isNotEmpty) {
+        // Update the corresponding text field in the provider using the field name
+        if (selectedField != null) {
+          provider.updateField(selectedField!, extractedText); // Update the correct field controller
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to extract text...')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to crop the image')),
+      );
+    }
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a valid ROI')),
+    );
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Stack(
-        children: [
-          GestureDetector(
-            onPanStart: (details) {
-              _updateDisplaySize();
-              setState(() {
-                _startPoint = details.localPosition;
-                roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
-              });
-            },
-            onPanUpdate: (details) {
-              setState(() {
-                roiRect = Rect.fromPoints(_startPoint, details.localPosition);
-              });
-            },
-            onPanEnd: (details) async {
-              if (roiRect.width > 10 && roiRect.height > 10) {
-                final croppedImageBytes = await _cropImage();
-                if (croppedImageBytes != null) {
-                  widget.onROISelected(croppedImageBytes);
-                } else {
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to crop the image')),
-                  );
-                }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please select a valid ROI')),
-                );
-              }
-            },
-            child: Image.memory(
-              widget.imageBytes,
-              key: imageKey,
-              fit: BoxFit.contain,
-            ),
-          ),
-          if (roiRect.width > 0 && roiRect.height > 0)
-            Positioned(
-              left: roiRect.left,
-              top: roiRect.top,
-              width: roiRect.width,
-              height: roiRect.height,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
-                ),
+    return Consumer<RoiProvider>(
+      builder: (context, value, child) => 
+       Center(
+        child: Stack(
+          children: [
+            GestureDetector(
+              onPanStart: (details) {
+                _updateDisplaySize();
+                setState(() {
+                  _startPoint = details.localPosition;
+                  roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+                });
+              },
+              onPanUpdate: (details) {
+                setState(() {
+                  roiRect = Rect.fromPoints(_startPoint, details.localPosition);
+                });
+              },
+              onPanEnd: (_) => _onPanEndHandler(value), // Handle pan end here
+              child: Image.memory(
+                widget.imageBytes,
+                key: imageKey,
+                fit: BoxFit.contain,
               ),
             ),
-        ],
+            if (roiRect.width > 0 && roiRect.height > 0)
+              Positioned(
+                left: roiRect.left,
+                top: roiRect.top,
+                width: roiRect.width,
+                height: roiRect.height,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.red, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Future<Uint8List?> _cropImage() async {
     if (displaySize == null) return null;
-    
+
     final image = img.decodeImage(widget.imageBytes);
     if (image == null) return null;
 
@@ -127,8 +149,6 @@ class _ROISelectionState extends State<ROISelection> {
     width = width.clamp(1, image.width - x);
     height = height.clamp(1, image.height - y);
 
-    log('Cropping at coordinates: x=$x, y=$y, width=$width, height=$height');
-    
     final img.Image croppedImage = img.copyCrop(
       image,
       x: x,

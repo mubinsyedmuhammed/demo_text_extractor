@@ -1,8 +1,6 @@
-import 'dart:developer';
-
-import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
+import 'package:demo_text_extractor/widgets/crop_area.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -11,10 +9,10 @@ class CustomForm extends StatefulWidget {
 
   @override
   // ignore: library_private_types_in_public_api
-  CustomFormState createState() => CustomFormState();
+  _CustomFormState createState() => _CustomFormState();
 }
 
-class CustomFormState extends State<CustomForm> {
+class _CustomFormState extends State<CustomForm> {
   final _formKey = GlobalKey<FormState>();
 
   Future<void> onROISelected(String field, RoiProvider provider) async {
@@ -24,49 +22,8 @@ class CustomFormState extends State<CustomForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please upload an Image first...')),
       );
-      return;
-    }
-
-    if (croppedImages != null) {
-      log('its working');
-      OCRService apiService = OCRService();
-      String? extractedText =
-        await apiService.extractTextFromImageOcr(croppedImages!);
-
-      if (extractedText.isNotEmpty) {
-        setState(() {
-          switch (field) {
-            case "Name":
-              nameController.text = extractedText;
-              break;
-            case "Pincode":
-              pincodeController.text = extractedText;
-              break;
-            case "Phone":
-              phoneController.text = extractedText;
-              break;
-            case "Gender":
-              genderController.text = extractedText;
-              break;
-            case "Date of Birth":
-              dobController.text = extractedText;
-              break;
-            case "Address":
-              addressController.text = extractedText;
-              break;
-          }
-        });
-      } else {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to extract text...')),
-        );
-      }
-    } else {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No ROI selected.')),
-      );
+      CropAreaWidgetState().extractTextFromImage(field, croppedImages!);
+      // return;
     }
   }
 
@@ -122,14 +79,13 @@ class CustomFormState extends State<CustomForm> {
             ),
             IconButton(
               icon: Icon(
-                Icons.crop,
-                color: provider.isROISelectionActive
-                    ? Colors.green
-                    : Colors.blueGrey,
-              ),
+                    Icons.crop,
+                    color: provider.isROISelectionActive ? Colors.green : Colors.blueGrey,
+                  ),
               onPressed: provider.isROISelectionActive
                   ? null
                   : () => onROISelected(fieldName, provider),
+                  // : () => CropAreaWidgetState().extractTextFromImage(fieldName, croppedImages!),
             ),
           ],
         );
