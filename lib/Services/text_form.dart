@@ -18,8 +18,6 @@ class CustomFormState extends State<CustomForm> {
   final _formKey = GlobalKey<FormState>();
 
   Future<void> onROISelected(String field, RoiProvider provider) async {
-    provider.enableROISelection();
-
     if (selectedImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please upload an Image first...')),
@@ -27,47 +25,35 @@ class CustomFormState extends State<CustomForm> {
       return;
     }
 
-    if (croppedImages != null) {
-      log('its working');
-      OCRService apiService = OCRService();
-      String? extractedText =
-        await apiService.extractTextFromImageOcr(croppedImages!);
+    selectedField = field; // Store selected field
+    provider.enableROISelection();
+    provider.setSelectedField(field);
 
-      if (extractedText.isNotEmpty) {
-        setState(() {
-          switch (field) {
-            case "Name":
-              nameController.text = extractedText;
-              break;
-            case "Pincode":
-              pincodeController.text = extractedText;
-              break;
-            case "Phone":
-              phoneController.text = extractedText;
-              break;
-            case "Gender":
-              genderController.text = extractedText;
-              break;
-            case "Date of Birth":
-              dobController.text = extractedText;
-              break;
-            case "Address":
-              addressController.text = extractedText;
-              break;
-          }
-        });
-      } else {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to extract text...')),
-        );
-      }
-    } else {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No ROI selected.')),
-      );
-    }
+    // Wait for ROI selection and text extraction
+    provider.onROICompleted = (String extractedText) {
+      setState(() {
+        switch (field) {
+          case "Name":
+            nameController.text = extractedText;
+            break;
+          case "Pincode":
+            pincodeController.text = extractedText.replaceAll(RegExp(r'[^0-9]'), '');
+            break;
+          case "Phone":
+            phoneController.text = extractedText.replaceAll(RegExp(r'[^0-9]'), '');
+            break;
+          case "Gender":
+            genderController.text = extractedText;
+            break;
+          case "Date of Birth":
+            dobController.text = extractedText;
+            break;
+          case "Address":
+            addressController.text = extractedText;
+            break;
+        }
+      });
+    };
   }
 
   void _submitForm() {
