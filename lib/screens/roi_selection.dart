@@ -76,51 +76,40 @@ class _ROISelectionState extends State<ROISelection> {
   }
 
   Future<Uint8List?> _cropImage() async {
-    final image = img.decodeImage(widget.imageBytes);
+  final image = img.decodeImage(widget.imageBytes);
     if (image == null) {
       log('Failed to decode image');
       return null;
     }
 
-    // Get the actual image dimensions
+    // Get the original image dimensions
     int imageWidth = image.width;
     int imageHeight = image.height;
 
-    // Get the displayed image size
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) {
-      log('Failed to get render box');
-      return null;
-    }
+    // Map the ROI coordinates directly to the image size
+    int x = roiRect.left.toInt();
+    int y = roiRect.top.toInt();
+    int width = roiRect.width.toInt();
+    int height = roiRect.height.toInt();
 
-    Size displayedSize = renderBox.size;
+    log('Selected ROI (original image): $x:$y:$width:$height');
 
-    // Scale ROI coordinates to match actual image dimensions
-    double scaleX = imageWidth / displayedSize.width;
-    double scaleY = imageHeight / displayedSize.height;
-
-    int x = (roiRect.left * scaleX).toInt();
-    int y = (roiRect.top * scaleY).toInt();
-    int width = (roiRect.width * scaleX).toInt();
-    int height = (roiRect.height * scaleY).toInt();
-
-    log('Selected ROI (scaled): $x:$y:$width:$height');
-
-    // Clamp values to avoid errors
+    // Clamp values to avoid errors (ensure they are within image bounds)
     x = x.clamp(0, imageWidth);
     y = y.clamp(0, imageHeight);
     width = width.clamp(0, imageWidth - x);
     height = height.clamp(0, imageHeight - y);
 
     if (width <= 0 || height <= 0) {
-      log('Invalid crop dimensions after scaling: $x:$y:$width:$height');
+      log('Invalid crop dimensions: $x:$y:$width:$height');
       return null;
     }
 
-    // Crop the image
+    // Crop the image based on the original dimensions
     final img.Image croppedImage = img.copyCrop(image, x: x, y: y, width: width, height: height);
 
     // Convert to PNG format
     return Uint8List.fromList(img.encodePng(croppedImage));
   }
+
 }

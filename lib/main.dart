@@ -1,8 +1,18 @@
+import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:demo_text_extractor/screens/home_screen.dart';
 
+
 void main() {
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => RoiProvider()),
+      ],
+      child: MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
