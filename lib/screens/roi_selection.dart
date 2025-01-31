@@ -21,6 +21,31 @@ class ROISelection extends StatefulWidget {
 class _ROISelectionState extends State<ROISelection> {
   Rect roiRect = Rect.zero;
   Offset _startPoint = Offset.zero;
+  late double imageWidth, imageHeight;
+  GlobalKey imageKey = GlobalKey();
+  Size? displaySize;
+
+  @override
+  void initState() {
+    super.initState();
+    final image = img.decodeImage(widget.imageBytes);
+    if (image != null) {
+      imageWidth = image.width.toDouble();
+      imageHeight = image.height.toDouble();
+    } else {
+      imageWidth = 0;
+      imageHeight = 0;
+    }
+  }
+
+  void _updateDisplaySize() {
+    final RenderBox? renderBox = imageKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      setState(() {
+        displaySize = renderBox.size;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +54,7 @@ class _ROISelectionState extends State<ROISelection> {
         children: [
           GestureDetector(
             onPanStart: (details) {
+              _updateDisplaySize();
               setState(() {
                 _startPoint = details.localPosition;
                 roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
@@ -56,7 +82,11 @@ class _ROISelectionState extends State<ROISelection> {
                 );
               }
             },
-            child: Image.memory(widget.imageBytes),
+            child: Image.memory(
+              widget.imageBytes,
+              key: imageKey,
+              fit: BoxFit.contain,
+            ),
           ),
           if (roiRect.width > 0 && roiRect.height > 0)
             Positioned(
@@ -66,7 +96,7 @@ class _ROISelectionState extends State<ROISelection> {
               height: roiRect.height,
               child: Container(
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.black, width: 1.5),
+                  border: Border.all(color: Colors.red, width: 2),
                 ),
               ),
             ),
@@ -76,40 +106,37 @@ class _ROISelectionState extends State<ROISelection> {
   }
 
   Future<Uint8List?> _cropImage() async {
-  final image = img.decodeImage(widget.imageBytes);
-    if (image == null) {
-      log('Failed to decode image');
-      return null;
-    }
+    if (displaySize == null) return null;
+    
+    final image = img.decodeImage(widget.imageBytes);
+    if (image == null) return null;
 
-    // Get the original image dimensions
-    int imageWidth = image.width;
-    int imageHeight = image.height;
+    // Calculate scaling factors
+    double scaleX = imageWidth / displaySize!.width;
+    double scaleY = imageHeight / displaySize!.height;
 
-    // Map the ROI coordinates directly to the image size
-    int x = roiRect.left.toInt();
-    int y = roiRect.top.toInt();
-    int width = roiRect.width.toInt();
-    int height = roiRect.height.toInt();
+    // Convert display coordinates to actual image coordinates
+    int x = (roiRect.left * scaleX).round();
+    int y = (roiRect.top * scaleY).round();
+    int width = (roiRect.width * scaleX).round();
+    int height = (roiRect.height * scaleY).round();
 
-    log('Selected ROI (original image): $x:$y:$width:$height');
+    // Ensure coordinates are within image bounds
+    x = x.clamp(0, image.width - 1);
+    y = y.clamp(0, image.height - 1);
+    width = width.clamp(1, image.width - x);
+    height = height.clamp(1, image.height - y);
 
-    // Clamp values to avoid errors (ensure they are within image bounds)
-    x = x.clamp(0, imageWidth);
-    y = y.clamp(0, imageHeight);
-    width = width.clamp(0, imageWidth - x);
-    height = height.clamp(0, imageHeight - y);
+    log('Cropping at coordinates: x=$x, y=$y, width=$width, height=$height');
+    
+    final img.Image croppedImage = img.copyCrop(
+      image,
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+    );
 
-    if (width <= 0 || height <= 0) {
-      log('Invalid crop dimensions: $x:$y:$width:$height');
-      return null;
-    }
-
-    // Crop the image based on the original dimensions
-    final img.Image croppedImage = img.copyCrop(image, x: x, y: y, width: width, height: height);
-
-    // Convert to PNG format
     return Uint8List.fromList(img.encodePng(croppedImage));
   }
-
 }
