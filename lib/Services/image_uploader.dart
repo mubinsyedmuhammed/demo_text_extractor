@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import 'package:demo_text_extractor/screens/roi_selection.dart';
 import 'package:photo_view/photo_view.dart';
-// import 'package:demo_text_extractor/screens/cropp.dart'; // Import the class
 
 class ImageUploader extends StatefulWidget {
   const ImageUploader({super.key});
@@ -20,6 +19,8 @@ class ImageUploaderState extends State<ImageUploader> {
   bool _showROI = false;
   String? extractedText;
   double _rotationAngle = 0;
+  TextEditingController textController = TextEditingController();
+  bool isLoading = false;
 
   Future<void> _pickImage() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -87,69 +88,82 @@ class ImageUploaderState extends State<ImageUploader> {
                     child: const Text("Upload Image"),
                   ),
                 )
-              : Stack(
+              : Column(
                   children: [
-                    Center(
-                      child: provider.isROISelectionActive
-                          ? ROISelection(
-                              imageBytes: selectedImageBytes!,
-                              onROISelected: (croppedImg) {
-                                setState(() {
-                                  croppedImages = croppedImg; // Store cropped image
-                                });
-                                provider.disableROISelection();
-                              },
-                            )
-                          : GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _showROI = !_showROI;
-                                });
-                              },
-                              child: _showROI
+                    Expanded(
+                      flex: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Stack(
+                          children: [
+                            Center(
+                              child: provider.isROISelectionActive
                                   ? ROISelection(
                                       imageBytes: selectedImageBytes!,
                                       onROISelected: (croppedImg) {
                                         setState(() {
-                                          croppedImages = croppedImg;
+                                          croppedImages = croppedImg; // Store cropped image
                                         });
+                                        provider.disableROISelection();
                                       },
                                     )
-                                  : RotatedBox(
-                                      quarterTurns: (_rotationAngle ~/ 90) % 4,
-                                      child: PhotoView(
-                                        imageProvider:
-                                            MemoryImage(selectedImageBytes!),
-                                        minScale:
-                                            PhotoViewComputedScale.contained,
-                                        maxScale:
-                                            PhotoViewComputedScale.contained * 2,
-                                      ),
+                                  : GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _showROI = !_showROI;
+                                        });
+                                      },
+                                      child: _showROI
+                                          ? ROISelection(
+                                              imageBytes: selectedImageBytes!,
+                                              onROISelected: (croppedImg) {
+                                                setState(() {
+                                                  croppedImages = croppedImg;
+                                                });
+                                              },
+                                            )
+                                          : Container(
+                                              constraints: BoxConstraints(
+                                                maxWidth: MediaQuery.of(context).size.width,
+                                                maxHeight: MediaQuery.of(context).size.height,
+                                              ),
+                                              child: RotatedBox(
+                                                quarterTurns: (_rotationAngle ~/ 90) % 4,
+                                                child: PhotoView(
+                                                  imageProvider: MemoryImage(selectedImageBytes!),
+                                                  minScale: PhotoViewComputedScale.contained,
+                                                  maxScale: PhotoViewComputedScale.contained,
+                                                ),
+                                              ),
+                                            ),
                                     ),
                             ),
-                    ),
-                    Positioned(
-                      bottom: 80,
-                      right: 15,
-                      child: FloatingActionButton(
-                        onPressed: _rotateImage,
-                        child: const Icon(Icons.rotate_right),
-                      ),
-                    ),
-                    Positioned(
-                      top: 45,
-                      right: 8,
-                      child: IconButton(
-                        onPressed: _clearImage,
-                        icon: const Icon(Icons.close),
-                      ),
-                    ),
-                    Positioned(
-                      top: 45,
-                      left: 8,
-                      child: IconButton(
-                        onPressed: _previewCroppedImage, // Open cropped image preview
-                        icon: const Icon(Icons.image),
+                            Positioned(
+                              bottom: 80,
+                              right: 15,
+                              child: FloatingActionButton(
+                                onPressed: _rotateImage,
+                                child: const Icon(Icons.rotate_right),
+                              ),
+                            ),
+                            Positioned(
+                              top: 45,
+                              right: 8,
+                              child: IconButton(
+                                onPressed: _clearImage,
+                                icon: const Icon(Icons.close),
+                              ),
+                            ),
+                            Positioned(
+                              top: 45,
+                              left: 8,
+                              child: IconButton(
+                                onPressed: _previewCroppedImage, // Open cropped image preview
+                                icon: const Icon(Icons.image),
+                              ),
+                            )
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -157,5 +171,11 @@ class ImageUploaderState extends State<ImageUploader> {
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    textController.dispose();
+    super.dispose();
   }
 }

@@ -29,7 +29,7 @@ class OCRService {
     }
   }
 
-  Future<String> extractTextFromImage(Uint8List croppedImage) async {
+  Future<String> extractTextFromImageOcr(Uint8List croppedImage) async {
     return await extractText(croppedImage); // Call extractText with the cropped image
   }
 }
