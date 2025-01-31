@@ -25,6 +25,14 @@ class RoiProvider with ChangeNotifier {
   void disableROISelection() {
     _isROISelectionActive = false;
     _selectedField = null;
+    onROICompleted = null;
+    notifyListeners();
+  }
+
+  void cancelROISelection() {
+    _isROISelectionActive = false;
+    _selectedField = null;
+    onROICompleted = null;
     notifyListeners();
   }
 

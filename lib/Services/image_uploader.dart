@@ -85,11 +85,13 @@ class ImageUploaderState extends State<ImageUploader> {
         if (extractedText.isNotEmpty) {
           provider.processExtractedText(extractedText);
         } else {
+          // ignore: use_build_context_synchronously
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('No text found in selected area')),
           );
         }
       } catch (e) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Error extracting text')),
         );

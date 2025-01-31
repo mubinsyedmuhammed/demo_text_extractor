@@ -1,6 +1,3 @@
-import 'dart:developer';
-
-import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
@@ -92,6 +89,8 @@ class CustomFormState extends State<CustomForm> {
   Widget _buildField(String fieldName, TextEditingController controller) {
     return Consumer<RoiProvider>(
       builder: (context, provider, child) {
+        bool isActiveField = provider.isROISelectionActive && provider.selectedField == fieldName;
+        
         return Row(
           children: [
             Expanded(
@@ -108,14 +107,16 @@ class CustomFormState extends State<CustomForm> {
             ),
             IconButton(
               icon: Icon(
-                Icons.crop,
-                color: provider.isROISelectionActive
-                    ? Colors.green
-                    : Colors.blueGrey,
+                isActiveField ? Icons.close : Icons.crop,
+                color: isActiveField ? Colors.red : Colors.blueGrey,
               ),
-              onPressed: provider.isROISelectionActive
-                  ? null
-                  : () => onROISelected(fieldName, provider),
+              onPressed: () {
+                if (isActiveField) {
+                  provider.cancelROISelection();
+                } else if (!provider.isROISelectionActive) {
+                  onROISelected(fieldName, provider);
+                }
+              },
             ),
           ],
         );
