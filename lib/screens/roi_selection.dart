@@ -1,10 +1,8 @@
 import 'dart:developer';
 import 'dart:typed_data';
-import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-import 'package:provider/provider.dart';
 
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
@@ -129,24 +127,6 @@ class _ROISelectionState extends State<ROISelection> {
                   ),
                 ),
             ],
-          ),
-        ),
-        // Add cancel button at the top-right
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Material(
-            color: Colors.transparent,
-            child: IconButton(
-              icon: const Icon(
-                Icons.close,
-                color: Colors.red,
-                size: 30,
-              ),
-              onPressed: () {
-                Provider.of<RoiProvider>(context, listen: false).cancelROISelection();
-              },
-            ),
           ),
         ),
       ],
