@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 class RoiProvider with ChangeNotifier {
   bool _isROISelectionActive = false;
+  bool _isLoading = false;
   String? _currentField;
   Function(String, String)? onTextExtracted; // Callback for text extraction (field, text)
 
   bool get isROISelectionActive => _isROISelectionActive;
+  bool get isLoading => _isLoading;
   String? get currentField => _currentField;
 
   void startROISelection(String field) {
@@ -24,6 +26,11 @@ class RoiProvider with ChangeNotifier {
   void stopROISelection() {
     _isROISelectionActive = false;
     _currentField = null;
+    notifyListeners();
+  }
+
+  void setLoading(bool value) {
+    _isLoading = value;
     notifyListeners();
   }
 }
