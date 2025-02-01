@@ -7,22 +7,19 @@ class OCRService {
   final String apiUrl = "http://127.0.0.1:8000/extract_text/";
 
   Future<String> extractText(Uint8List croppedImage) async {
-    if (croppedImage.isEmpty) {
-      throw Exception('Invalid image data');
-    }
-
-    var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
-
     try {
+      if (croppedImage.isEmpty) {
+        throw OCRException('Invalid image data: Empty image');
+      }
+
+      var request = http.MultipartRequest('POST', Uri.parse(apiUrl));
       request.files.add(
         http.MultipartFile.fromBytes('file', croppedImage, filename: 'image.jpg')
       );
 
-      var response = await request.send().timeout(
+      final response = await request.send().timeout(
         const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception('Connection timeout');
-        },
+        onTimeout: () => throw OCRException('Connection timeout after 30 seconds'),
       );
 
       if (response.statusCode == 200) {
@@ -30,20 +27,25 @@ class OCRService {
         final jsonResponse = json.decode(responseData);
         
         if (!jsonResponse.containsKey('extracted_cleaned_text')) {
-          throw Exception('Invalid response format');
+          throw OCRException('Invalid response format: Missing extracted_cleaned_text');
         }
         
-        final extractedText = jsonResponse['extracted_cleaned_text'];
-        log('Extracted text: $extractedText');
+        final extractedText = jsonResponse['extracted_cleaned_text'] as String;
+        if (extractedText.trim().isEmpty) {
+          throw OCRException('No text found in image');
+        }
+        
+        log('Successfully extracted text: $extractedText');
         return extractedText;
       } else {
-        throw Exception('Server error: ${response.statusCode}');
+        throw OCRException('Server error: ${response.statusCode}');
       }
-    } on FormatException {
-      throw Exception('Invalid response format');
-    } catch (e) {
-      log('OCR Error: $e');
+    } on FormatException catch (e) {
+      throw OCRException('Invalid response format: ${e.message}');
+    } on OCRException {
       rethrow;
+    } catch (e) {
+      throw OCRException('OCR Error: $e');
     }
   }
 
@@ -55,6 +57,14 @@ class OCRService {
       return ''; // Return empty string on error
     }
   }
+}
+
+class OCRException implements Exception {
+  final String message;
+  OCRException(this.message);
+  
+  @override
+  String toString() => message;
 }
 
 

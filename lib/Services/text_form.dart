@@ -54,13 +54,25 @@ class CustomFormState extends State<CustomForm> {
   }
 
   Future<void> onROISelected(String field, RoiProvider provider) async {
-    if (selectedImageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload an Image first...')),
-      );
-      return;
+    try {
+      if (selectedImageBytes == null) {
+        throw Exception('Please upload an image first');
+      }
+
+      provider.startROISelection(field);
+    } catch (e) {
+      _showError(e.toString());
     }
-    provider.startROISelection(field);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _submitForm() {

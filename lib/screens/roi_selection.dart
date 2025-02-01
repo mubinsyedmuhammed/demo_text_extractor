@@ -33,11 +33,15 @@ class _ROISelectionState extends State<ROISelection> {
   @override
   void initState() {
     super.initState();
-    final image = img.decodeImage(widget.imageBytes);
-    if (image != null) {
+    try {
+      final image = img.decodeImage(widget.imageBytes);
+      if (image == null) {
+        throw Exception('Failed to decode image');
+      }
       imageWidth = image.width.toDouble();
       imageHeight = image.height.toDouble();
-    } else {
+    } catch (e) {
+      log('Error initializing ROI selection: $e');
       imageWidth = 0;
       imageHeight = 0;
     }
@@ -134,37 +138,51 @@ class _ROISelectionState extends State<ROISelection> {
   }
 
   Future<Uint8List?> _cropImage() async {
-    if (displaySize == null) return null;
-    
-    final image = img.decodeImage(widget.imageBytes);
-    if (image == null) return null;
+    try {
+      if (displaySize == null) {
+        throw Exception('Display size not initialized');
+      }
+      
+      final image = img.decodeImage(widget.imageBytes);
+      if (image == null) {
+        throw Exception('Failed to decode image for cropping');
+      }
 
-    // Calculate scaling factors
-    double scaleX = imageWidth / displaySize!.width;
-    double scaleY = imageHeight / displaySize!.height;
+      if (roiRect.width < 10 || roiRect.height < 10) {
+        throw Exception('Selected area too small');
+      }
 
-    // Convert display coordinates to actual image coordinates
-    int x = (roiRect.left * scaleX).round();
-    int y = (roiRect.top * scaleY).round();
-    int width = (roiRect.width * scaleX).round();
-    int height = (roiRect.height * scaleY).round();
+      // Calculate scaling factors
+      double scaleX = imageWidth / displaySize!.width;
+      double scaleY = imageHeight / displaySize!.height;
 
-    // Ensure coordinates are within image bounds
-    x = x.clamp(0, image.width - 1);
-    y = y.clamp(0, image.height - 1);
-    width = width.clamp(1, image.width - x);
-    height = height.clamp(1, image.height - y);
+      // Convert display coordinates to actual image coordinates
+      int x = (roiRect.left * scaleX).round();
+      int y = (roiRect.top * scaleY).round();
+      int width = (roiRect.width * scaleX).round();
+      int height = (roiRect.height * scaleY).round();
 
-    log('Cropping at coordinates: x=$x, y=$y, width=$width, height=$height');
-    
-    final img.Image croppedImage = img.copyCrop(
-      image,
-      x: x,
-      y: y,
-      width: width,
-      height: height,
-    );
+      // Ensure coordinates are within image bounds
+      x = x.clamp(0, image.width - 1);
+      y = y.clamp(0, image.height - 1);
+      width = width.clamp(1, image.width - x);
+      height = height.clamp(1, image.height - y);
 
-    return Uint8List.fromList(img.encodePng(croppedImage));
+      log('Cropping at coordinates: x=$x, y=$y, width=$width, height=$height');
+      
+      final img.Image croppedImage = img.copyCrop(
+        image,
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+      );
+
+      log('Successfully cropped image');
+      return Uint8List.fromList(img.encodePng(croppedImage));
+    } catch (e) {
+      log('Error during crop: $e');
+      return null;
+    }
   }
 }
