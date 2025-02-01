@@ -1,8 +1,10 @@
 import 'dart:developer';
 import 'dart:typed_data';
+import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
+import 'package:provider/provider.dart';
 
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
@@ -60,72 +62,94 @@ class _ROISelectionState extends State<ROISelection> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Stack(
-        children: [
-          InteractiveViewer(
-            transformationController: _transformationController,
-            minScale: 0.5,
-            maxScale: 4.0,
-            onInteractionUpdate: (details) {
-              setState(() {
-                _currentScale = _transformationController.value.getMaxScaleOnAxis();
-              });
-            },
-            child: GestureDetector(
-              onPanStart: (details) {
-                if (_currentScale <= 1.1) { // Only allow ROI selection when not heavily zoomed
-                  _updateDisplaySize();
+    return Stack(
+      children: [
+        Center(
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.5,
+                maxScale: 4.0,
+                onInteractionUpdate: (details) {
                   setState(() {
-                    _startPoint = details.localPosition;
-                    roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+                    _currentScale = _transformationController.value.getMaxScaleOnAxis();
                   });
-                }
-              },
-              onPanUpdate: (details) {
-                if (_currentScale <= 1.1) {
-                  setState(() {
-                    roiRect = Rect.fromPoints(_startPoint, details.localPosition);
-                  });
-                }
-              },
-              onPanEnd: (details) async {
-                if (_currentScale <= 1.1 && roiRect.width > 10 && roiRect.height > 10) {
-                  final croppedImageBytes = await _cropImage();
-                  if (croppedImageBytes != null) {
-                    setState(() {
-                      croppedImages = croppedImageBytes;
-                    });
-                    widget.onROISelected(croppedImageBytes);
-                  } else {
-                    // ignore: use_build_context_synchronously
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Failed to crop the image')),
-                    );
-                  }
-                }
-              },
-              child: Image.memory(
-                widget.imageBytes,
-                key: imageKey,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          if (roiRect.width > 0 && roiRect.height > 0 && _currentScale <= 1.1)
-            Positioned(
-              left: roiRect.left,
-              top: roiRect.top,
-              width: roiRect.width,
-              height: roiRect.height,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.red, width: 2),
+                },
+                child: GestureDetector(
+                  onPanStart: (details) {
+                    if (_currentScale <= 1.1) { // Only allow ROI selection when not heavily zoomed
+                      _updateDisplaySize();
+                      setState(() {
+                        _startPoint = details.localPosition;
+                        roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+                      });
+                    }
+                  },
+                  onPanUpdate: (details) {
+                    if (_currentScale <= 1.1) {
+                      setState(() {
+                        roiRect = Rect.fromPoints(_startPoint, details.localPosition);
+                      });
+                    }
+                  },
+                  onPanEnd: (details) async {
+                    if (_currentScale <= 1.1 && roiRect.width > 10 && roiRect.height > 10) {
+                      final croppedImageBytes = await _cropImage();
+                      if (croppedImageBytes != null) {
+                        setState(() {
+                          croppedImages = croppedImageBytes;
+                        });
+                        widget.onROISelected(croppedImageBytes);
+                      } else {
+                        // ignore: use_build_context_synchronously
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Failed to crop the image')),
+                        );
+                      }
+                    }
+                  },
+                  child: Image.memory(
+                    widget.imageBytes,
+                    key: imageKey,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
+              if (roiRect.width > 0 && roiRect.height > 0 && _currentScale <= 1.1)
+                Positioned(
+                  left: roiRect.left,
+                  top: roiRect.top,
+                  width: roiRect.width,
+                  height: roiRect.height,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.red, width: 2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        // Add cancel button at the top-right
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Material(
+            color: Colors.transparent,
+            child: IconButton(
+              icon: const Icon(
+                Icons.close,
+                color: Colors.red,
+                size: 30,
+              ),
+              onPressed: () {
+                Provider.of<RoiProvider>(context, listen: false).cancelROISelection();
+              },
             ),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 

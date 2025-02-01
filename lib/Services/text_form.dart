@@ -124,11 +124,11 @@ class CustomFormState extends State<CustomForm> {
             ),
             IconButton(
               icon: Icon(
-                Icons.crop,
-                color: isActiveField ? Colors.green : Colors.blueGrey,
+                isActiveField ? Icons.close : Icons.crop,
+                color: isActiveField ? Colors.red : Colors.blueGrey,
               ),
-              onPressed: provider.isROISelectionActive
-                  ? null
+              onPressed: isActiveField
+                  ? () => provider.cancelROISelection()
                   : () => onROISelected(fieldName, provider),
             ),
           ],

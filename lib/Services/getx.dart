@@ -29,6 +29,12 @@ class RoiProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void cancelROISelection() {
+    _isROISelectionActive = false;
+    _currentField = null;
+    notifyListeners();
+  }
+
   void setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
