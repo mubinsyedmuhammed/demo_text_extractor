@@ -1,14 +1,12 @@
-import 'dart:typed_data';
-
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
+import 'package:demo_text_extractor/screens/cropp.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'package:demo_text_extractor/screens/roi_selection.dart';
-import 'package:photo_view/photo_view.dart';
 
 class ImageUploader extends StatefulWidget {
   const ImageUploader({super.key});
@@ -33,8 +31,8 @@ class ImageUploaderState extends State<ImageUploader> {
         throw Exception('No image selected');
       }
 
-      if (result.files.single.size > 10 * 1024 * 1024) { // 10MB limit
-        throw Exception('Image size too large (max 10MB)');
+      if (result.files.single.size > 2 * 1024 * 1024) { // 2MB limit
+        throw Exception('Image size too large (max 2MB)');
       }
 
       setState(() {
@@ -72,30 +70,15 @@ class ImageUploaderState extends State<ImageUploader> {
 
   Widget _buildImageDisplay() {
     try {
-      return ClipRect(
-        child: PhotoView(
-          imageProvider: MemoryImage(selectedImageBytes!),
-          minScale: PhotoViewComputedScale.contained * 0.8,
-          maxScale: PhotoViewComputedScale.covered * 3,
-          initialScale: PhotoViewComputedScale.contained,
-          backgroundDecoration: const BoxDecoration(
-            color: Colors.transparent,
-          ),
+      return Center(
+        child: Image.memory(
+          selectedImageBytes!,
+          fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
-          enableRotation: true,
-          basePosition: Alignment.center,
-          // rotation: _rotationAngle * (3.14159265359 / 180),
-          errorBuilder: (context, error, stackTrace) {
-            return Center(
-              child: Text('Error loading image: $error'),
-            );
-          },
         ),
       );
     } catch (e) {
-      return Center(
-        child: Text('Error displaying image: $e'),
-      );
+      return Center(child: Text('Error displaying image: $e'));
     }
   }
 
@@ -120,34 +103,43 @@ class ImageUploaderState extends State<ImageUploader> {
                         child: const Text("Upload Image"),
                       ),
                     )
-                  : Column(
-                      children: [
-                        Expanded(
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              provider.isROISelectionActive
-                                  ? ROISelection(
-                                      imageBytes: selectedImageBytes!,
-                                      onROISelected: (croppedImg) async {
-                                        setState(() {
-                                          croppedImages = croppedImg;
-                                        });
-                                        provider.setLoading(true);
-                                        OCRService apiService = OCRService();
-                                        String extractedText = 
-                                            await apiService.extractTextFromImageOcr(croppedImg);
-                                        provider.processTextExtraction(extractedText);
-                                        provider.setLoading(false);
-                                      },
-                                    )
-                                  : _buildImageDisplay(),
-                              // Control buttons
-                              _buildControlButtons(),
-                            ],
+                  : Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade300),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  provider.isROISelectionActive
+                                      ? ROISelection(
+                                          imageBytes: selectedImageBytes!,
+                                          onROISelected: (croppedImg) async {
+                                            setState(() {
+                                              croppedImages = croppedImg;
+                                            });
+                                            provider.setLoading(true);
+                                            OCRService apiService = OCRService();
+                                            String extractedText = 
+                                                await apiService.extractTextFromImageOcr(croppedImg);
+                                            provider.processTextExtraction(extractedText);
+                                            provider.setLoading(false);
+                                          },
+                                        )
+                                      : _buildImageDisplay(),
+                                  _buildControlButtons(),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
               if (provider.isLoading)
                 _buildLoadingIndicator(),
@@ -165,6 +157,7 @@ class ImageUploaderState extends State<ImageUploader> {
           bottom: 20,
           right: 20,
           child: FloatingActionButton(
+            heroTag: 'rotateButton',
             onPressed: _rotateImage,
             child: const Icon(Icons.rotate_right),
           ),
@@ -211,9 +204,9 @@ class ImageUploaderState extends State<ImageUploader> {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               ),
-              SizedBox(width: 12),
+              SizedBox(width: 10),
               Text(
-                'Extracting text...',
+                'Loading....',
                 style: TextStyle(color: Colors.white),
               ),
             ],
@@ -244,20 +237,3 @@ class ImageUploaderState extends State<ImageUploader> {
   }
 }
 
-class CroppedImageShow extends StatelessWidget {
-  final Uint8List image;
-
-  const CroppedImageShow({super.key, required this.image});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cropped Image'),
-      ),
-      body: Center(
-        child: Image.memory(image),
-      ),
-    );
-  }
-}

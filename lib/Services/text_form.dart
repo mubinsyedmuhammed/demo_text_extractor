@@ -25,29 +25,27 @@ class CustomFormState extends State<CustomForm> {
           setState(() {
             switch (field) {
               case "Name":
-                nameController.text = text;
+                _updateText(nameController, text);
                 break;
               case "Pincode":
-                pincodeController.text = text;
+                _updateText(pincodeController, text);
                 break;
               case "Phone":
-                phoneController.text = text;
+                _updateText(phoneController, text);
                 break;
               case "Gender":
-                genderController.text = text;
+                _updateText(genderController, text);
                 break;
               case "Date of Birth":
-                dobController.text = text;
+                _updateText(dobController, text);
                 break;
               case "Address":
-                addressController.text = text;
+                _updateText(addressController, text);
                 break;
             }
           });
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to extract text...')),
-          );
+          _showError('Failed to extract text...');
         }
       };
     });
@@ -80,6 +78,15 @@ class CustomFormState extends State<CustomForm> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Form Submitted Successfully!')),
       );
+    }
+  }
+
+  void _updateText(TextEditingController controller, String newText) {
+    if (controller.text.isNotEmpty) {
+      // If text already exists, append new text with a space
+      controller.text = '${controller.text} $newText';
+    } else {
+      controller.text = newText;
     }
   }
 
@@ -123,6 +130,12 @@ class CustomFormState extends State<CustomForm> {
                   enabledBorder: isActiveField 
                     ? const OutlineInputBorder(
                         borderSide: BorderSide(color: Colors.green),
+                      )
+                    : null,
+                  suffixIcon: controller.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => setState(() => controller.clear()),
                       )
                     : null,
                 ),
