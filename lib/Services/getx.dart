@@ -2,43 +2,28 @@ import 'package:flutter/material.dart';
 
 class RoiProvider with ChangeNotifier {
   bool _isROISelectionActive = false;
-  String? _selectedField;
-  Function(String)? onROICompleted;
+  String? _currentField;
+  Function(String, String)? onTextExtracted; // Callback for text extraction (field, text)
 
   bool get isROISelectionActive => _isROISelectionActive;
-  String? get selectedField => _selectedField;
+  String? get currentField => _currentField;
 
-  void setContext(BuildContext context, BuildContext contexts) {
-    contexts = context;
-  }
-
-  void setSelectedField(String field) {
-    _selectedField = field;
-    notifyListeners();
-  }
-
-  void enableROISelection() {
+  void startROISelection(String field) {
     _isROISelectionActive = true;
+    _currentField = field;
     notifyListeners();
   }
 
-  void disableROISelection() {
-    _isROISelectionActive = false;
-    _selectedField = null;
-    onROICompleted = null;
-    notifyListeners();
-  }
-
-  void cancelROISelection() {
-    _isROISelectionActive = false;
-    _selectedField = null;
-    onROICompleted = null;
-    notifyListeners();
-  }
-
-  void processExtractedText(String text) {
-    if (onROICompleted != null) {
-      onROICompleted!(text);
+  void processTextExtraction(String text) {
+    if (_currentField != null && onTextExtracted != null) {
+      onTextExtracted!(_currentField!, text);
     }
+    stopROISelection();
+  }
+
+  void stopROISelection() {
+    _isROISelectionActive = false;
+    _currentField = null;
+    notifyListeners();
   }
 }

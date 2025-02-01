@@ -1,7 +1,10 @@
+import 'dart:developer';
+import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 
 class CustomForm extends StatefulWidget {
   const CustomForm({super.key});
@@ -14,6 +17,44 @@ class CustomForm extends StatefulWidget {
 class CustomFormState extends State<CustomForm> {
   final _formKey = GlobalKey<FormState>();
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<RoiProvider>(context, listen: false);
+      provider.onTextExtracted = (field, text) {
+        if (text.isNotEmpty) {
+          setState(() {
+            switch (field) {
+              case "Name":
+                nameController.text = text;
+                break;
+              case "Pincode":
+                pincodeController.text = text;
+                break;
+              case "Phone":
+                phoneController.text = text;
+                break;
+              case "Gender":
+                genderController.text = text;
+                break;
+              case "Date of Birth":
+                dobController.text = text;
+                break;
+              case "Address":
+                addressController.text = text;
+                break;
+            }
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to extract text...')),
+          );
+        }
+      };
+    });
+  }
+
   Future<void> onROISelected(String field, RoiProvider provider) async {
     if (selectedImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -21,36 +62,7 @@ class CustomFormState extends State<CustomForm> {
       );
       return;
     }
-
-    selectedField = field; // Store selected field
-    provider.enableROISelection();
-    provider.setSelectedField(field);
-
-    // Wait for ROI selection and text extraction
-    provider.onROICompleted = (String extractedText) {
-      setState(() {
-        switch (field) {
-          case "Name":
-            nameController.text = extractedText;
-            break;
-          case "Pincode":
-            pincodeController.text = extractedText.replaceAll(RegExp(r'[^0-9]'), '');
-            break;
-          case "Phone":
-            phoneController.text = extractedText.replaceAll(RegExp(r'[^0-9]'), '');
-            break;
-          case "Gender":
-            genderController.text = extractedText;
-            break;
-          case "Date of Birth":
-            dobController.text = extractedText;
-            break;
-          case "Address":
-            addressController.text = extractedText;
-            break;
-        }
-      });
-    };
+    provider.startROISelection(field);
   }
 
   void _submitForm() {
@@ -63,7 +75,7 @@ class CustomFormState extends State<CustomForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return Padding( 
       padding: const EdgeInsets.all(16.0),
       child: Form(
         key: _formKey,
@@ -89,14 +101,21 @@ class CustomFormState extends State<CustomForm> {
   Widget _buildField(String fieldName, TextEditingController controller) {
     return Consumer<RoiProvider>(
       builder: (context, provider, child) {
-        bool isActiveField = provider.isROISelectionActive && provider.selectedField == fieldName;
-        
+        final isActiveField = provider.isROISelectionActive && 
+                            provider.currentField == fieldName;
         return Row(
           children: [
             Expanded(
               child: TextFormField(
                 controller: controller,
-                decoration: InputDecoration(labelText: fieldName),
+                decoration: InputDecoration(
+                  labelText: fieldName,
+                  enabledBorder: isActiveField 
+                    ? const OutlineInputBorder(
+                        borderSide: BorderSide(color: Colors.green),
+                      )
+                    : null,
+                ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter $fieldName';
@@ -107,16 +126,12 @@ class CustomFormState extends State<CustomForm> {
             ),
             IconButton(
               icon: Icon(
-                isActiveField ? Icons.close : Icons.crop,
-                color: isActiveField ? Colors.red : Colors.blueGrey,
+                Icons.crop,
+                color: isActiveField ? Colors.green : Colors.blueGrey,
               ),
-              onPressed: () {
-                if (isActiveField) {
-                  provider.cancelROISelection();
-                } else if (!provider.isROISelectionActive) {
-                  onROISelected(fieldName, provider);
-                }
-              },
+              onPressed: provider.isROISelectionActive
+                  ? null
+                  : () => onROISelected(fieldName, provider),
             ),
           ],
         );
@@ -124,3 +139,4 @@ class CustomFormState extends State<CustomForm> {
     );
   }
 }
+

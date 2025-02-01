@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
@@ -72,35 +70,6 @@ class ImageUploaderState extends State<ImageUploader> {
     }
   }
 
-  Future<void> _handleROISelected(Uint8List croppedImg, RoiProvider provider) async {
-    setState(() {
-      croppedImages = croppedImg;
-    });
-
-    if (selectedField != null) {
-      try {
-        OCRService apiService = OCRService();
-        String extractedText = await apiService.extractTextFromImageOcr(croppedImg);
-        
-        if (extractedText.isNotEmpty) {
-          provider.processExtractedText(extractedText);
-        } else {
-          // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No text found in selected area')),
-          );
-        }
-      } catch (e) {
-        // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error extracting text')),
-        );
-      }
-    }
-    
-    provider.disableROISelection();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -132,7 +101,17 @@ class ImageUploaderState extends State<ImageUploader> {
                               child: provider.isROISelectionActive
                                   ? ROISelection(
                                       imageBytes: selectedImageBytes!,
-                                      onROISelected: (croppedImg) => _handleROISelected(croppedImg, provider),
+                                      onROISelected: (croppedImg) async {
+                                        setState(() {
+                                          croppedImages = croppedImg;
+                                        });
+                                        
+                                        // Extract text immediately after ROI selection
+                                        OCRService apiService = OCRService();
+                                        String extractedText = await apiService.extractTextFromImageOcr(croppedImg);
+                                        
+                                        provider.processTextExtraction(extractedText);
+                                      },
                                     )
                                   : GestureDetector(
                                       onTap: () {
@@ -143,7 +122,11 @@ class ImageUploaderState extends State<ImageUploader> {
                                       child: _showROI
                                           ? ROISelection(
                                               imageBytes: selectedImageBytes!,
-                                              onROISelected: (croppedImg) => _handleROISelected(croppedImg, provider),
+                                              onROISelected: (croppedImg) {
+                                                setState(() {
+                                                  croppedImages = croppedImg;
+                                                });
+                                              },
                                             )
                                           : Container(
                                               constraints: BoxConstraints(
@@ -155,7 +138,7 @@ class ImageUploaderState extends State<ImageUploader> {
                                                 child: PhotoView(
                                                   imageProvider: MemoryImage(selectedImageBytes!),
                                                   minScale: PhotoViewComputedScale.contained,
-                                                  maxScale: PhotoViewComputedScale.contained,
+                                                  maxScale: PhotoViewComputedScale.covered,
                                                 ),
                                               ),
                                             ),

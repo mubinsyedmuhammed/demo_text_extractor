@@ -1,5 +1,6 @@
 import 'dart:developer';
 import 'dart:typed_data';
+import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
@@ -24,6 +25,10 @@ class _ROISelectionState extends State<ROISelection> {
   late double imageWidth, imageHeight;
   GlobalKey imageKey = GlobalKey();
   Size? displaySize;
+  
+  // Simplified zoom variables
+  final TransformationController _transformationController = TransformationController();
+  double _currentScale = 1.0;
 
   @override
   void initState() {
@@ -36,6 +41,12 @@ class _ROISelectionState extends State<ROISelection> {
       imageWidth = 0;
       imageHeight = 0;
     }
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
   }
 
   void _updateDisplaySize() {
@@ -52,43 +63,56 @@ class _ROISelectionState extends State<ROISelection> {
     return Center(
       child: Stack(
         children: [
-          GestureDetector(
-            onPanStart: (details) {
-              _updateDisplaySize();
+          InteractiveViewer(
+            transformationController: _transformationController,
+            minScale: 0.5,
+            maxScale: 4.0,
+            onInteractionUpdate: (details) {
               setState(() {
-                _startPoint = details.localPosition;
-                roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+                _currentScale = _transformationController.value.getMaxScaleOnAxis();
               });
             },
-            onPanUpdate: (details) {
-              setState(() {
-                roiRect = Rect.fromPoints(_startPoint, details.localPosition);
-              });
-            },
-            onPanEnd: (details) async {
-              if (roiRect.width > 10 && roiRect.height > 10) {
-                final croppedImageBytes = await _cropImage();
-                if (croppedImageBytes != null) {
-                  widget.onROISelected(croppedImageBytes);
-                } else {
-                  // ignore: use_build_context_synchronously
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to crop the image')),
-                  );
+            child: GestureDetector(
+              onPanStart: (details) {
+                if (_currentScale <= 1.1) { // Only allow ROI selection when not heavily zoomed
+                  _updateDisplaySize();
+                  setState(() {
+                    _startPoint = details.localPosition;
+                    roiRect = Rect.fromPoints(details.localPosition, details.localPosition);
+                  });
                 }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please select a valid ROI')),
-                );
-              }
-            },
-            child: Image.memory(
-              widget.imageBytes,
-              key: imageKey,
-              fit: BoxFit.contain,
+              },
+              onPanUpdate: (details) {
+                if (_currentScale <= 1.1) {
+                  setState(() {
+                    roiRect = Rect.fromPoints(_startPoint, details.localPosition);
+                  });
+                }
+              },
+              onPanEnd: (details) async {
+                if (_currentScale <= 1.1 && roiRect.width > 10 && roiRect.height > 10) {
+                  final croppedImageBytes = await _cropImage();
+                  if (croppedImageBytes != null) {
+                    setState(() {
+                      croppedImages = croppedImageBytes;
+                    });
+                    widget.onROISelected(croppedImageBytes);
+                  } else {
+                    // ignore: use_build_context_synchronously
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Failed to crop the image')),
+                    );
+                  }
+                }
+              },
+              child: Image.memory(
+                widget.imageBytes,
+                key: imageKey,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
-          if (roiRect.width > 0 && roiRect.height > 0)
+          if (roiRect.width > 0 && roiRect.height > 0 && _currentScale <= 1.1)
             Positioned(
               left: roiRect.left,
               top: roiRect.top,
