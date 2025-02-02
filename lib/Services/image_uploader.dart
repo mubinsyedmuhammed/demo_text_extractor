@@ -17,9 +17,10 @@ class ImageUploader extends StatefulWidget {
 
 class ImageUploaderState extends State<ImageUploader> {
   String? extractedText;
-  double _rotationAngle = 0;
   TextEditingController textController = TextEditingController();
   bool isLoading = false;
+  final TransformationController _transformationController = TransformationController();
+  final ValueNotifier<double> _rotationNotifier = ValueNotifier(0.0);
 
   Future<void> _pickImage() async {
     try {
@@ -63,38 +64,28 @@ class ImageUploaderState extends State<ImageUploader> {
   }
 
   void _rotateImage() {
-    setState(() {
-      _rotationAngle = (_rotationAngle + 90) % 360;
-    });
+    _rotationNotifier.value = (_rotationNotifier.value + 90) % 360;
   }
 
   Widget _buildImageDisplay() {
-    try {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          return Container(
-            width: constraints.maxWidth,
-            height: constraints.maxHeight,
-            child: InteractiveViewer(
-              maxScale: 4.0,
-              minScale: 0.8,
-              child: Transform.rotate(
-                angle: _rotationAngle * 3.14159 / 180,
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: Image.memory(
-                    selectedImageBytes!,
-                    filterQuality: FilterQuality.high,
-                  ),
-                ),
-              ),
+    return InteractiveViewer(
+      transformationController: _transformationController,
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: ValueListenableBuilder<double>(
+        valueListenable: _rotationNotifier,
+        builder: (context, rotation, child) {
+          return Transform.rotate(
+            angle: rotation * 3.14159 / 180,
+            child: Image.memory(
+              selectedImageBytes!,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
           );
         },
-      );
-    } catch (e) {
-      return Center(child: Text('Error displaying image: $e'));
-    }
+      ),
+    );
   }
 
   @override
@@ -129,25 +120,24 @@ class ImageUploaderState extends State<ImageUploader> {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Container(
-                              color: Colors.grey[100], // Background color
-                              child: provider.isROISelectionActive
-                                  ? ROISelection(
-                                      imageBytes: selectedImageBytes!,
-                                      onROISelected: (croppedImg) async {
-                                        setState(() {
-                                          croppedImages = croppedImg;
-                                        });
-                                        provider.setLoading(true);
-                                        OCRService apiService = OCRService();
-                                        String extractedText = 
-                                            await apiService.extractTextFromImageOcr(croppedImg);
-                                        provider.processTextExtraction(extractedText);
-                                        provider.setLoading(false);
-                                      },
-                                    )
-                                  : _buildImageDisplay(),
-                            ),
+                            provider.isROISelectionActive
+                                ? ROISelection(
+                                    imageBytes: selectedImageBytes!,
+                                    onROISelected: (croppedImg) async {
+                                      setState(() {
+                                        croppedImages = croppedImg;
+                                      });
+                                      provider.setLoading(true);
+                                      OCRService apiService = OCRService();
+                                      String extractedText = 
+                                          await apiService.extractTextFromImageOcr(croppedImg);
+                                      provider.processTextExtraction(extractedText);
+                                      provider.setLoading(false);
+                                    },
+                                    transformationController: _transformationController,
+                                    rotation: _rotationNotifier.value,
+                                  )
+                                : _buildImageDisplay(),
                             _buildControlButtons(),
                           ],
                         ),
@@ -244,6 +234,8 @@ class ImageUploaderState extends State<ImageUploader> {
 
   @override
   void dispose() {
+    _transformationController.dispose();
+    _rotationNotifier.dispose();
     textController.dispose();
     super.dispose();
   }
