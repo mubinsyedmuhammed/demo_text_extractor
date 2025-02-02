@@ -201,19 +201,7 @@ class ROISelectionPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (imageRect == null) return;
 
-    // Draw semi-transparent overlay
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-
-    // Draw overlay excluding selection
-    canvas.drawRect(imageRect!, paint);
-    canvas.drawRect(
-      selectionRect,
-      Paint()..blendMode = BlendMode.clear,
-    );
-
-    // Draw selection border
+    // Draw only the selection border, no overlay
     canvas.drawRect(
       selectionRect,
       Paint()
@@ -221,6 +209,33 @@ class ROISelectionPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0,
     );
+
+    // Draw corner markers
+    const double markerSize = 10.0;
+    final markerPaint = Paint()
+      ..color = Colors.blue
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    // Draw corner markers at selection corners
+    void drawCornerMarker(Offset corner, bool isLeft, bool isTop) {
+      canvas.drawLine(
+        corner,
+        corner.translate(isLeft ? markerSize : -markerSize, 0),
+        markerPaint,
+      );
+      canvas.drawLine(
+        corner,
+        corner.translate(0, isTop ? markerSize : -markerSize),
+        markerPaint,
+      );
+    }
+
+    // Draw all corners
+    drawCornerMarker(selectionRect.topLeft, true, true);
+    drawCornerMarker(selectionRect.topRight, false, true);
+    drawCornerMarker(selectionRect.bottomLeft, true, false);
+    drawCornerMarker(selectionRect.bottomRight, false, false);
   }
 
   @override
