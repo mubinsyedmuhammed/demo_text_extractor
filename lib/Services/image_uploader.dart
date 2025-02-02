@@ -70,12 +70,27 @@ class ImageUploaderState extends State<ImageUploader> {
 
   Widget _buildImageDisplay() {
     try {
-      return Center(
-        child: Image.memory(
-          selectedImageBytes!,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-        ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            width: constraints.maxWidth,
+            height: constraints.maxHeight,
+            child: InteractiveViewer(
+              maxScale: 4.0,
+              minScale: 0.8,
+              child: Transform.rotate(
+                angle: _rotationAngle * 3.14159 / 180,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: Image.memory(
+                    selectedImageBytes!,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       );
     } catch (e) {
       return Center(child: Text('Error displaying image: $e'));
@@ -105,40 +120,37 @@ class ImageUploaderState extends State<ImageUploader> {
                     )
                   : Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade300),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              clipBehavior: Clip.antiAlias,
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  provider.isROISelectionActive
-                                      ? ROISelection(
-                                          imageBytes: selectedImageBytes!,
-                                          onROISelected: (croppedImg) async {
-                                            setState(() {
-                                              croppedImages = croppedImg;
-                                            });
-                                            provider.setLoading(true);
-                                            OCRService apiService = OCRService();
-                                            String extractedText = 
-                                                await apiService.extractTextFromImageOcr(croppedImg);
-                                            provider.processTextExtraction(extractedText);
-                                            provider.setLoading(false);
-                                          },
-                                        )
-                                      : _buildImageDisplay(),
-                                  _buildControlButtons(),
-                                ],
-                              ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Container(
+                              color: Colors.grey[100], // Background color
+                              child: provider.isROISelectionActive
+                                  ? ROISelection(
+                                      imageBytes: selectedImageBytes!,
+                                      onROISelected: (croppedImg) async {
+                                        setState(() {
+                                          croppedImages = croppedImg;
+                                        });
+                                        provider.setLoading(true);
+                                        OCRService apiService = OCRService();
+                                        String extractedText = 
+                                            await apiService.extractTextFromImageOcr(croppedImg);
+                                        provider.processTextExtraction(extractedText);
+                                        provider.setLoading(false);
+                                      },
+                                    )
+                                  : _buildImageDisplay(),
                             ),
-                          ),
-                        ],
+                            _buildControlButtons(),
+                          ],
+                        ),
                       ),
                     ),
               if (provider.isLoading)
