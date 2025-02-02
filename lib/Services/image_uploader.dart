@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/const.dart';
@@ -72,18 +74,9 @@ class ImageUploaderState extends State<ImageUploader> {
       transformationController: _transformationController,
       minScale: 0.5,
       maxScale: 4.0,
-      child: ValueListenableBuilder<double>(
-        valueListenable: _rotationNotifier,
-        builder: (context, rotation, child) {
-          return Transform.rotate(
-            angle: rotation * 3.14159 / 180,
-            child: Image.memory(
-              selectedImageBytes!,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-            ),
-          );
-        },
+      child: RotationAwareImage(
+        imageBytes: selectedImageBytes!,
+        rotationNotifier: _rotationNotifier,
       ),
     );
   }
@@ -135,7 +128,7 @@ class ImageUploaderState extends State<ImageUploader> {
                                       provider.setLoading(false);
                                     },
                                     transformationController: _transformationController,
-                                    rotation: _rotationNotifier.value,
+                                    rotationNotifier: _rotationNotifier,
                                   )
                                 : _buildImageDisplay(),
                             _buildControlButtons(),
@@ -238,6 +231,34 @@ class ImageUploaderState extends State<ImageUploader> {
     _rotationNotifier.dispose();
     textController.dispose();
     super.dispose();
+  }
+}
+
+class RotationAwareImage extends StatelessWidget {
+  final Uint8List imageBytes;
+  final ValueNotifier<double> rotationNotifier;
+
+  const RotationAwareImage({
+    Key? key,
+    required this.imageBytes,
+    required this.rotationNotifier,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: rotationNotifier,
+      builder: (context, rotation, child) {
+        return Transform.rotate(
+          angle: rotation * 3.14159 / 180,
+          child: Image.memory(
+            imageBytes,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        );
+      },
+    );
   }
 }
 

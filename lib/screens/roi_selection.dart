@@ -1,24 +1,24 @@
 // import 'dart:developer';
 import 'dart:typed_data';
+import 'package:demo_text_extractor/Services/image_uploader.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 // ignore: depend_on_referenced_packages
 import 'package:vector_math/vector_math_64.dart';
-import 'dart:math' as math;
 
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
   final Function(Uint8List) onROISelected;
   final TransformationController? transformationController;
-  final double rotation;
+  final ValueNotifier<double> rotationNotifier;
 
   const ROISelection({
     super.key,
     required this.imageBytes,
     required this.onROISelected,
     this.transformationController,
-    this.rotation = 0,
+    required this.rotationNotifier,
   });
 
   @override
@@ -50,7 +50,7 @@ class _ROISelectionState extends State<ROISelection> {
     }
   }
 
-  void _synchronizeTransformation() {
+  void _synchronizeTransformation([ScaleEndDetails? details]) {
     if (widget.transformationController != null) {
       _transformController.value = widget.transformationController!.value;
     }
@@ -126,18 +126,11 @@ class _ROISelectionState extends State<ROISelection> {
                 transformationController: _transformController,
                 minScale: 0.5,
                 maxScale: 4.0,
-                onInteractionEnd: (details) {
-                  if (widget.transformationController != null) {
-                    widget.transformationController!.value = _transformController.value;
-                  }
-                },
-                child: Transform.rotate(
-                  angle: widget.rotation * 3.14159 / 180,
-                  child: Image.memory(
-                    widget.imageBytes,
-                    key: imageKey,
-                    fit: BoxFit.contain,
-                  ),
+                onInteractionEnd: _synchronizeTransformation,
+                child: RotationAwareImage(
+                  imageBytes: widget.imageBytes,
+                  rotationNotifier: widget.rotationNotifier,
+                  key: imageKey,
                 ),
               ),
             ),
@@ -177,7 +170,7 @@ class _ROISelectionState extends State<ROISelection> {
                       selectionRect: roiRect,
                       imageRect: _imageRect,
                       transform: _transformController.value,
-                      rotation: widget.rotation,
+                      rotation: widget.rotationNotifier.value,
                     ),
                   ),
                 ),
@@ -198,6 +191,16 @@ class _ROISelectionState extends State<ROISelection> {
     );
   }
 
+  Rect _getAdjustedRect(double scale, double rotation) {
+    final center = roiRect.center;
+    final adjustedRect = Rect.fromCenter(
+      center: center,
+      width: roiRect.width,
+      height: roiRect.height,
+    );
+    return adjustedRect;
+  }
+
   Future<Uint8List?> _cropImage() async {
     if (_imageRect == null) return null;
     
@@ -206,15 +209,13 @@ class _ROISelectionState extends State<ROISelection> {
 
     final matrix = _transformController.value;
     final scale = matrix.getMaxScaleOnAxis();
-    final translation = matrix.getTranslation();
+    matrix.getTranslation();
 
-    // Adjust selection coordinates based on current transform
-    final adjustedRect = Rect.fromLTRB(
-      (roiRect.left - translation.x) / scale,
-      (roiRect.top - translation.y) / scale,
-      (roiRect.right - translation.x) / scale,
-      (roiRect.bottom - translation.y) / scale,
-    );
+    // Get current rotation
+    final rotation = widget.rotationNotifier.value;
+    
+    // Apply rotation to coordinates if needed
+    final adjustedRect = _getAdjustedRect(scale, rotation);
 
     // Calculate image coordinates
     final imageRect = _imageRect!;
