@@ -23,6 +23,7 @@ class ImageUploaderState extends State<ImageUploader> {
   bool isLoading = false;
   final TransformationController _transformationController = TransformationController();
   final ValueNotifier<double> _rotationNotifier = ValueNotifier(0.0);
+  bool _showRotationSlider = false;
 
   Future<void> _pickImage() async {
     try {
@@ -66,7 +67,7 @@ class ImageUploaderState extends State<ImageUploader> {
   }
 
   void _rotateImage() {
-    _rotationNotifier.value = (_rotationNotifier.value + 90) % 360;
+    _rotationNotifier.value = ((_rotationNotifier.value + 90) % 360) - 180;
   }
 
   Widget _buildImageDisplay() {
@@ -77,6 +78,63 @@ class ImageUploaderState extends State<ImageUploader> {
       child: RotationAwareImage(
         imageBytes: selectedImageBytes!,
         rotationNotifier: _rotationNotifier,
+      ),
+    );
+  }
+
+  Widget _buildRotationControls() {
+    return Positioned(
+      bottom: 80,
+      left: 16,
+      right: 16,
+      child: AnimatedOpacity(
+        opacity: _showRotationSlider ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 200),
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Rotation'),
+                    Row(
+                      children: [
+                        Text('${_rotationNotifier.value.toStringAsFixed(1)}°'),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.restore, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: () => _rotationNotifier.value = 0.0,
+                          tooltip: 'Reset rotation',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                ValueListenableBuilder<double>(
+                  valueListenable: _rotationNotifier,
+                  builder: (context, rotation, child) {
+                    return Slider(
+                      value: rotation,
+                      min: -180,
+                      max: 180,
+                      divisions: 360,
+                      label: '${rotation.round()}°',
+                      onChanged: (value) {
+                        _rotationNotifier.value = value;
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -136,6 +194,7 @@ class ImageUploaderState extends State<ImageUploader> {
                         ),
                       ),
                     ),
+              if (selectedImageBytes != null) _buildRotationControls(),
               if (provider.isLoading)
                 _buildLoadingIndicator(),
             ],
@@ -173,6 +232,15 @@ class ImageUploaderState extends State<ImageUploader> {
             onPressed: _previewCroppedImage,
             icon: const Icon(Icons.image),
             color: Colors.black87,
+          ),
+        ),
+        Positioned(
+          bottom: 20,
+          left: 20,
+          child: FloatingActionButton(
+            heroTag: 'rotationSliderButton',
+            onPressed: () => setState(() => _showRotationSlider = !_showRotationSlider),
+            child: Icon(_showRotationSlider ? Icons.rotate_left : Icons.rotate_90_degrees_cw),
           ),
         ),
       ],
@@ -239,10 +307,10 @@ class RotationAwareImage extends StatelessWidget {
   final ValueNotifier<double> rotationNotifier;
 
   const RotationAwareImage({
-    Key? key,
+    super.key,
     required this.imageBytes,
     required this.rotationNotifier,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
