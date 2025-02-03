@@ -7,8 +7,11 @@ import 'package:demo_text_extractor/screens/cropp.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
-
+import 'dart:math' as math;
 import 'package:demo_text_extractor/screens/roi_selection.dart';
+import 'package:image/image.dart' as img;
+
+
 
 class ImageUploader extends StatefulWidget {
   const ImageUploader({super.key});
@@ -24,6 +27,17 @@ class ImageUploaderState extends State<ImageUploader> {
   final TransformationController _transformationController = TransformationController();
   final ValueNotifier<double> _rotationNotifier = ValueNotifier(0.0);
   bool _showRotationSlider = false;
+  final GlobalKey _imageKey = GlobalKey();
+  Size? _imageSize;
+  Matrix4? _lastTransformation;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeImage();
+    });
+  }
 
   Future<void> _pickImage() async {
     try {
@@ -70,16 +84,67 @@ class ImageUploaderState extends State<ImageUploader> {
     _rotationNotifier.value = ((_rotationNotifier.value + 90) % 360) - 180;
   }
 
+  void _initializeImage() {
+    if (selectedImageBytes != null) {
+      final image = img.decodeImage(selectedImageBytes!);
+      if (image != null) {
+        setState(() {
+          _imageSize = Size(image.width.toDouble(), image.height.toDouble());
+          _centerImage();
+        });
+      }
+    }
+  }
+
   Widget _buildImageDisplay() {
-    return InteractiveViewer(
-      transformationController: _transformationController,
-      minScale: 0.5,
-      maxScale: 4.0,
-      child: RotationAwareImage(
-        imageBytes: selectedImageBytes!,
-        rotationNotifier: _rotationNotifier,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.5,
+                maxScale: 4.0,
+                onInteractionEnd: (details) {
+                  _lastTransformation = _transformationController.value.clone();
+                },
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: Image.memory(
+                    selectedImageBytes!,
+                    filterQuality: FilterQuality.high,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  double _calculateInitialScale(Size imageSize, Size viewportSize) {
+    final double scaleX = viewportSize.width / imageSize.width;
+    final double scaleY = viewportSize.height / imageSize.height;
+    return math.min(scaleX, scaleY);
+  }
+
+  void _centerImage() {
+    if (_imageSize == null) return;
+    final RenderBox? box = _imageKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+
+    final viewportSize = box.size;
+    final scale = _calculateInitialScale(_imageSize!, viewportSize);
+    final matrix = Matrix4.identity()
+      ..translate(
+        (viewportSize.width - _imageSize!.width * scale) / 2,
+        (viewportSize.height - _imageSize!.height * scale) / 2
+      )
+      ..scale(scale);
+
+    _transformationController.value = matrix;
   }
 
   Widget _buildRotationControls() {
@@ -187,6 +252,7 @@ class ImageUploaderState extends State<ImageUploader> {
                                     },
                                     transformationController: _transformationController,
                                     rotationNotifier: _rotationNotifier,
+                                    initialTransformation: _lastTransformation,
                                   )
                                 : _buildImageDisplay(),
                             _buildControlButtons(),

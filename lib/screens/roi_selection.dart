@@ -4,15 +4,15 @@ import 'package:demo_text_extractor/Services/image_uploader.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-// ignore: depend_on_referenced_packages
-import 'package:vector_math/vector_math_64.dart';
-import 'dart:math' as math;
+
+
 
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
   final Function(Uint8List) onROISelected;
   final TransformationController? transformationController;
   final ValueNotifier<double> rotationNotifier;
+  final Matrix4? initialTransformation;
 
   const ROISelection({
     super.key,
@@ -20,6 +20,7 @@ class ROISelection extends StatefulWidget {
     required this.onROISelected,
     this.transformationController,
     required this.rotationNotifier,
+    this.initialTransformation,
   });
 
   @override
@@ -40,6 +41,9 @@ class _ROISelectionState extends State<ROISelection> {
   void initState() {
     super.initState();
     _transformController = widget.transformationController ?? TransformationController();
+    if (widget.initialTransformation != null) {
+      _transformController.value = widget.initialTransformation!;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calculateImageRect();
       _synchronizeTransformation();
@@ -51,7 +55,7 @@ class _ROISelectionState extends State<ROISelection> {
     }
   }
 
-  void _synchronizeTransformation([ScaleEndDetails? details]) {
+  void _synchronizeTransformation() {
     if (widget.transformationController != null) {
       _transformController.value = widget.transformationController!.value;
     }
@@ -85,18 +89,6 @@ class _ROISelectionState extends State<ROISelection> {
     });
   }
 
-  Matrix4 get _effectiveTransform {
-    final matrix = _transformController.value.clone();
-    final rotation = widget.rotationNotifier.value * (math.pi / 180);
-    final rotationMatrix = Matrix4.rotationZ(rotation);
-    return matrix..multiply(rotationMatrix);
-  }
-
-  Offset _transformPoint(Offset point, Matrix4 transform) {
-    final vector = Vector3(point.dx, point.dy, 0);
-    final transformed = transform.perspectiveTransform(vector);
-    return Offset(transformed.x, transformed.y);
-  }
 
   void _handlePanStart(DragStartDetails details) {
     final RenderBox box = context.findRenderObject() as RenderBox;
@@ -129,149 +121,97 @@ class _ROISelectionState extends State<ROISelection> {
     final image = img.decodeImage(widget.imageBytes);
     if (image == null) return null;
 
-    // Get current transformation state
-    final transform = _transformController.value;
-    final scale = transform.getMaxScaleOnAxis();
-    final translation = transform.getTranslation();
-    final rotation = widget.rotationNotifier.value;
+    final box = context.findRenderObject() as RenderBox;
+    final viewportSize = box.size;
     
-    // Convert ROI coordinates to image space
-    final viewToImageTransform = Matrix4.identity()
-      ..scale(image.width / _imageRect!.width, image.height / _imageRect!.height);
+    // Convert ROI to normalized coordinates
+    final normalizedRect = _getNormalizedRect(roiRect, viewportSize);
     
-    // Apply all transformations in correct order
-    final adjustedRect = _getTransformedRect(
-      rect: roiRect,
-      scale: scale,
-      translation: translation,
-      rotation: rotation,
-      viewToImage: viewToImageTransform,
-    );
-
-    // Ensure coordinates are within bounds
-    final x = adjustedRect.left.round().clamp(0, image.width - 1);
-    final y = adjustedRect.top.round().clamp(0, image.height - 1);
-    final width = adjustedRect.width.round().clamp(1, image.width - x);
-    final height = adjustedRect.height.round().clamp(1, image.height - y);
+    // Convert to image coordinates
+    final imageX = (normalizedRect.left * image.width).round();
+    final imageY = (normalizedRect.top * image.height).round();
+    final imageWidth = (normalizedRect.width * image.width).round();
+    final imageHeight = (normalizedRect.height * image.height).round();
 
     try {
-      // Apply rotation to image first if needed
-      final rotatedImage = rotation != 0
-          ? img.copyRotate(image, angle: rotation.round())
+      final rotation = widget.rotationNotifier.value.round();
+      final processedImage = rotation != 0 
+          ? img.copyRotate(image, angle: rotation)
           : image;
 
-      // Then crop the rotated image
-      final croppedImage = img.copyCrop(
-        rotatedImage,
-        x: x,
-        y: y,
-        width: width,
-        height: height,
-      );
-
-      return Uint8List.fromList(img.encodePng(croppedImage));
+      return Uint8List.fromList(img.encodePng(
+        img.copyCrop(
+          processedImage,
+          x: imageX.clamp(0, processedImage.width - 1),
+          y: imageY.clamp(0, processedImage.height - 1),
+          width: imageWidth.clamp(1, processedImage.width - imageX),
+          height: imageHeight.clamp(1, processedImage.height - imageY),
+        )
+      ));
     } catch (e) {
       debugPrint('Cropping error: $e');
       return null;
     }
   }
 
-  Rect _getTransformedRect({
-    required Rect rect,
-    required double scale,
-    required Vector3 translation,
-    required double rotation,
-    required Matrix4 viewToImage,
-  }) {
-    // Adjust for translation and scale
-    final unscaledRect = Rect.fromLTWH(
-      (rect.left - translation.x) / scale,
-      (rect.top - translation.y) / scale,
-      rect.width / scale,
-      rect.height / scale,
+  Rect _getNormalizedRect(Rect roi, Size viewportSize) {
+    return Rect.fromLTRB(
+      roi.left / viewportSize.width,
+      roi.top / viewportSize.height,
+      roi.right / viewportSize.width,
+      roi.bottom / viewportSize.height,
     );
-
-    // Adjust for rotation around center
-    final center = unscaledRect.center;
-    final rad = rotation * math.pi / 180;
-    final cos = math.cos(rad);
-    final sin = math.sin(rad);
-
-    List<Offset> corners = [
-      unscaledRect.topLeft,
-      unscaledRect.topRight,
-      unscaledRect.bottomRight,
-      unscaledRect.bottomLeft,
-    ];
-
-    // Rotate each corner
-    corners = corners.map((corner) {
-      final dx = corner.dx - center.dx;
-      final dy = corner.dy - center.dy;
-      return Offset(
-        center.dx + (dx * cos - dy * sin),
-        center.dy + (dx * sin + dy * cos),
-      );
-    }).toList();
-
-    // Convert to image coordinates
-    corners = corners.map((corner) {
-      final vector = viewToImage.transform3(Vector3(corner.dx, corner.dy, 0));
-      return Offset(vector.x, vector.y);
-    }).toList();
-
-    // Get bounding box of transformed corners
-    double minX = double.infinity, minY = double.infinity;
-    double maxX = double.negativeInfinity, maxY = double.negativeInfinity;
-
-    for (final corner in corners) {
-      minX = math.min(minX, corner.dx);
-      minY = math.min(minY, corner.dy);
-      maxX = math.max(maxX, corner.dx);
-      maxY = math.max(maxY, corner.dy);
-    }
-
-    return Rect.fromLTWH(minX, minY, maxX - minX, maxY - minY);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        InteractiveViewer(
-          transformationController: _transformController,
-          minScale: 0.5,
-          maxScale: 4.0,
-          child: RotationAwareImage(
-            imageBytes: widget.imageBytes,
-            rotationNotifier: widget.rotationNotifier,
-            key: imageKey,
-          ),
-        ),
-        Positioned.fill(
-          child: GestureDetector(
-            onPanStart: _handlePanStart,
-            onPanUpdate: _handlePanUpdate,
-            onPanEnd: (details) async {
-              if (roiRect.width > 10 && roiRect.height > 10) {
-                final croppedImageBytes = await _cropImage();
-                if (croppedImageBytes != null) {
-                  setState(() {
-                    croppedImages = croppedImageBytes;
-                  });
-                  widget.onROISelected(croppedImageBytes);
-                }
-              }
-            },
-            child: CustomPaint(
-              painter: ROISelectionPainter(
-                selectionRect: roiRect,
-                imageRect: _imageRect,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                transformationController: _transformController,
+                minScale: 0.5,
+                maxScale: 4.0,
+                scaleEnabled: false,
+                panEnabled: false,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: Image.memory(
+                    widget.imageBytes,
+                    filterQuality: FilterQuality.high,
+                    key: imageKey,
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
-      ],
+            Positioned.fill(
+              child: GestureDetector(
+                onPanStart: _handlePanStart,
+                onPanUpdate: _handlePanUpdate,
+                onPanEnd: (details) async {
+                  if (roiRect.width > 10 && roiRect.height > 10) {
+                    final croppedImageBytes = await _cropImage();
+                    if (croppedImageBytes != null) {
+                      setState(() {
+                        croppedImages = croppedImageBytes;
+                      });
+                      widget.onROISelected(croppedImageBytes);
+                    }
+                  }
+                },
+                child: CustomPaint(
+                  painter: ROISelectionPainter(
+                    selectionRect: roiRect,
+                    imageRect: _imageRect,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
