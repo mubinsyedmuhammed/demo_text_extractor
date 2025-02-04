@@ -4,15 +4,13 @@ import 'package:demo_text_extractor/Services/image_uploader.dart';
 import 'package:demo_text_extractor/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
-
-
+// ignore: depend_on_referenced_packages
 
 class ROISelection extends StatefulWidget {
   final Uint8List imageBytes;
   final Function(Uint8List) onROISelected;
   final TransformationController? transformationController;
   final ValueNotifier<double> rotationNotifier;
-  final Matrix4? initialTransformation;
 
   const ROISelection({
     super.key,
@@ -20,7 +18,6 @@ class ROISelection extends StatefulWidget {
     required this.onROISelected,
     this.transformationController,
     required this.rotationNotifier,
-    this.initialTransformation,
   });
 
   @override
@@ -41,9 +38,6 @@ class _ROISelectionState extends State<ROISelection> {
   void initState() {
     super.initState();
     _transformController = widget.transformationController ?? TransformationController();
-    if (widget.initialTransformation != null) {
-      _transformController.value = widget.initialTransformation!;
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _calculateImageRect();
       _synchronizeTransformation();
@@ -90,6 +84,7 @@ class _ROISelectionState extends State<ROISelection> {
   }
 
 
+
   void _handlePanStart(DragStartDetails details) {
     final RenderBox box = context.findRenderObject() as RenderBox;
     final localPos = box.globalToLocal(details.globalPosition);
@@ -110,8 +105,15 @@ class _ROISelectionState extends State<ROISelection> {
     final RenderBox box = context.findRenderObject() as RenderBox;
     final localPos = box.globalToLocal(details.globalPosition);
 
+    // Constrain selection within image bounds
+    final constrainedPos = Offset(
+      localPos.dx.clamp(_imageRect!.left, _imageRect!.right),
+      localPos.dy.clamp(_imageRect!.top, _imageRect!.bottom),
+    );
+
     setState(() {
-      roiRect = Rect.fromPoints(_startPoint, localPos);
+      roiRect = Rect.fromPoints(_startPoint, constrainedPos)
+          .intersect(_imageRect!); // Ensure selection stays within image bounds
     });
   }
 
@@ -121,97 +123,86 @@ class _ROISelectionState extends State<ROISelection> {
     final image = img.decodeImage(widget.imageBytes);
     if (image == null) return null;
 
-    final box = context.findRenderObject() as RenderBox;
-    final viewportSize = box.size;
-    
-    // Convert ROI to normalized coordinates
-    final normalizedRect = _getNormalizedRect(roiRect, viewportSize);
-    
-    // Convert to image coordinates
-    final imageX = (normalizedRect.left * image.width).round();
-    final imageY = (normalizedRect.top * image.height).round();
-    final imageWidth = (normalizedRect.width * image.width).round();
-    final imageHeight = (normalizedRect.height * image.height).round();
-
     try {
+      // Calculate relative coordinates within the image bounds
+      final relativeX = (roiRect.left - _imageRect!.left) / _imageRect!.width;
+      final relativeY = (roiRect.top - _imageRect!.top) / _imageRect!.height;
+      final relativeWidth = roiRect.width / _imageRect!.width;
+      final relativeHeight = roiRect.height / _imageRect!.height;
+
+      // Convert to actual image coordinates
+      final x = (relativeX * image.width).round();
+      final y = (relativeY * image.height).round();
+      final width = (relativeWidth * image.width).round();
+      final height = (relativeHeight * image.height).round();
+
+      // Apply rotation if needed
       final rotation = widget.rotationNotifier.value.round();
       final processedImage = rotation != 0 
           ? img.copyRotate(image, angle: rotation)
           : image;
 
-      return Uint8List.fromList(img.encodePng(
-        img.copyCrop(
-          processedImage,
-          x: imageX.clamp(0, processedImage.width - 1),
-          y: imageY.clamp(0, processedImage.height - 1),
-          width: imageWidth.clamp(1, processedImage.width - imageX),
-          height: imageHeight.clamp(1, processedImage.height - imageY),
-        )
-      ));
+      // Ensure coordinates are within bounds
+      final safeX = x.clamp(0, processedImage.width - 1);
+      final safeY = y.clamp(0, processedImage.height - 1);
+      final safeWidth = width.clamp(1, processedImage.width - safeX);
+      final safeHeight = height.clamp(1, processedImage.height - safeY);
+
+      final croppedImage = img.copyCrop(
+        processedImage,
+        x: safeX,
+        y: safeY,
+        width: safeWidth,
+        height: safeHeight,
+      );
+
+      return Uint8List.fromList(img.encodePng(croppedImage));
     } catch (e) {
       debugPrint('Cropping error: $e');
       return null;
     }
   }
 
-  Rect _getNormalizedRect(Rect roi, Size viewportSize) {
-    return Rect.fromLTRB(
-      roi.left / viewportSize.width,
-      roi.top / viewportSize.height,
-      roi.right / viewportSize.width,
-      roi.bottom / viewportSize.height,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          children: [
-            Center(
-              child: InteractiveViewer(
-                transformationController: _transformController,
-                minScale: 0.5,
-                maxScale: 4.0,
-                scaleEnabled: false,
-                panEnabled: false,
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: Image.memory(
-                    widget.imageBytes,
-                    filterQuality: FilterQuality.high,
-                    key: imageKey,
-                  ),
-                ),
+    return Stack(
+    fit:   StackFit.expand,
+      children: [
+        InteractiveViewer(
+          transformationController: _transformController,
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: RotationAwareImage(
+            imageBytes: widget.imageBytes,
+            rotationNotifier: widget.rotationNotifier,
+            key: imageKey,
+          ),
+        ),
+        Positioned.fill(
+          child: GestureDetector(
+            onPanStart: _handlePanStart,
+            onPanUpdate: _handlePanUpdate,
+            onPanEnd: (details) async {
+              if (roiRect.width > 10 && roiRect.height > 10) {
+                final croppedImageBytes = await _cropImage();
+                if (croppedImageBytes != null) {
+                  setState(() {
+                    croppedImages = croppedImageBytes;
+                  });
+                  widget.onROISelected(croppedImageBytes);
+                }
+              }
+            },
+            child: CustomPaint(
+              painter: ROISelectionPainter(
+                selectionRect: roiRect,
+                imageRect: _imageRect,
               ),
             ),
-            Positioned.fill(
-              child: GestureDetector(
-                onPanStart: _handlePanStart,
-                onPanUpdate: _handlePanUpdate,
-                onPanEnd: (details) async {
-                  if (roiRect.width > 10 && roiRect.height > 10) {
-                    final croppedImageBytes = await _cropImage();
-                    if (croppedImageBytes != null) {
-                      setState(() {
-                        croppedImages = croppedImageBytes;
-                      });
-                      widget.onROISelected(croppedImageBytes);
-                    }
-                  }
-                },
-                child: CustomPaint(
-                  painter: ROISelectionPainter(
-                    selectionRect: roiRect,
-                    imageRect: _imageRect,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
 
