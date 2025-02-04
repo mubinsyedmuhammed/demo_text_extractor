@@ -1,6 +1,6 @@
 
 import 'package:demo_text_extractor/Services/getx.dart';
-import 'package:demo_text_extractor/const.dart';
+import 'package:demo_text_extractor/Services/const.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

@@ -1,7 +1,7 @@
 // import 'dart:developer';
 import 'dart:typed_data';
 import 'package:demo_text_extractor/Services/image_uploader.dart';
-import 'package:demo_text_extractor/const.dart';
+import 'package:demo_text_extractor/Services/const.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 // ignore: depend_on_referenced_packages

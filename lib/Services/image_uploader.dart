@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
-import 'package:demo_text_extractor/const.dart';
+import 'package:demo_text_extractor/Services/const.dart';
 import 'package:demo_text_extractor/screens/cropp.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -42,6 +42,10 @@ class ImageUploaderState extends State<ImageUploader> {
       setState(() {
         selectedImageBytes = result.files.single.bytes;
         croppedImages = null;
+        // Reset zoom and rotation
+        _transformationController.value = Matrix4.identity();
+        _rotationNotifier.value = 0.0;
+        _showRotationSlider = false;
       });
     } catch (e) {
       _showErrorSnackBar(e.toString());
@@ -63,6 +67,10 @@ class ImageUploaderState extends State<ImageUploader> {
       selectedImageBytes = null;
       croppedImages = null;
       extractedText = null;
+      // Reset zoom and rotation
+      _transformationController.value = Matrix4.identity();
+      _rotationNotifier.value = 0.0;
+      _showRotationSlider = false;
     });
   }
 
