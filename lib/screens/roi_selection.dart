@@ -136,24 +136,13 @@ class _ROISelectionState extends State<ROISelection> {
       final width = (relativeWidth * image.width).round();
       final height = (relativeHeight * image.height).round();
 
-      // Apply rotation if needed
-      final rotation = widget.rotationNotifier.value.round();
-      final processedImage = rotation != 0 
-          ? img.copyRotate(image, angle: rotation)
-          : image;
-
-      // Ensure coordinates are within bounds
-      final safeX = x.clamp(0, processedImage.width - 1);
-      final safeY = y.clamp(0, processedImage.height - 1);
-      final safeWidth = width.clamp(1, processedImage.width - safeX);
-      final safeHeight = height.clamp(1, processedImage.height - safeY);
-
+      // Crop the image
       final croppedImage = img.copyCrop(
-        processedImage,
-        x: safeX,
-        y: safeY,
-        width: safeWidth,
-        height: safeHeight,
+        image,
+        x: x.clamp(0, image.width - 1),
+        y: y.clamp(0, image.height - 1),
+        width: width.clamp(1, image.width - x),
+        height: height.clamp(1, image.height - y),
       );
 
       return Uint8List.fromList(img.encodePng(croppedImage));

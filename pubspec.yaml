@@ -44,7 +44,7 @@ dependencies:
   # Remove or comment out this line:
   # photo_view: ^0.15.0
   image_cropper: ^8.1.0
-  path_provider: ^2.1.5
+  path_provider: ^2.1.1
   get: ^4.6.6
   provider: ^6.1.2
 
