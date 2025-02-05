@@ -6,7 +6,6 @@ import 'package:demo_text_extractor/screens/cropp.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
-import 'dart:io';
 import 'package:image/image.dart' as img;
 
 import 'package:demo_text_extractor/screens/roi_selection.dart';
@@ -82,9 +81,6 @@ class ImageUploaderState extends State<ImageUploader> {
     });
   }
 
-  void _rotateImage() {
-    _rotationNotifier.value = ((_rotationNotifier.value + 90) % 360) - 180;
-  }
 
   Future<void> _processAndSaveRotatedImage() async {
     try {
@@ -100,7 +96,9 @@ class ImageUploaderState extends State<ImageUploader> {
 
       // Apply rotation
       double rotation = _rotationNotifier.value;
-      while (rotation < 0) rotation += 360;
+      while (rotation < 0) {
+        rotation += 360;
+      }
       final processedImage = img.copyRotate(originalImage, angle: rotation.round());
 
       // Convert to bytes
@@ -118,7 +116,7 @@ class ImageUploaderState extends State<ImageUploader> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Image processed successfully!'),
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 1),
         ),
       );
     } catch (e) {
@@ -150,15 +148,25 @@ class ImageUploaderState extends State<ImageUploader> {
         child: Card(
           elevation: 4,
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Rotation'),
+                    Row(
+                      children: [
+                        const Text('Rotation'),
+                        const SizedBox(width: 8),
+                        // Quick angle buttons
+                        _buildAngleButton(-180),
+                        _buildAngleButton(-90),
+                         _buildAngleButton(0),
+                        _buildAngleButton(90),
+                         _buildAngleButton(180)
+                      ],
+                    ),
                     Row(
                       children: [
                         Text('${_rotationNotifier.value.toStringAsFixed(1)}°'),
@@ -177,15 +185,30 @@ class ImageUploaderState extends State<ImageUploader> {
                 ValueListenableBuilder<double>(
                   valueListenable: _rotationNotifier,
                   builder: (context, rotation, child) {
-                    return Slider(
-                      value: rotation,
-                      min: -180,
-                      max: 180,
-                      divisions: 360,
-                      label: '${rotation.round()}°',
-                      onChanged: (value) {
-                        _rotationNotifier.value = value;
-                      },
+                    return Column(
+                      children: [
+                        Slider(
+                          value: rotation,
+                          min: -180,
+                          max: 180,
+                          divisions: 360,
+                          label: '${rotation.round()}°',
+                          onChanged: (value) {
+                            _rotationNotifier.value = value;
+                          },
+                        ),
+                        // Angle markers
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('-180°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                            Text('-90°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                            Text('0°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                            Text('90°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                            Text('180°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                          ],
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -197,84 +220,103 @@ class ImageUploaderState extends State<ImageUploader> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text(
-          'Uploaded Document',
-          style: TextStyle(fontWeight: FontWeight.bold),
+  Widget _buildAngleButton(int angle) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: InkWell(
+        onTap: () => _rotationNotifier.value = angle.toDouble(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            // ignore: deprecated_member_use
+            color: _rotationNotifier.value == angle ? Colors.blue.withOpacity(0.2) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _rotationNotifier.value == angle ? Colors.blue : Colors.grey,
+              width: 1,
+            ),
+          ),
+          child: Text(
+            '$angle°',
+            style: TextStyle(
+              fontSize: 12,
+              color: _rotationNotifier.value == angle ? Colors.blue : Colors.grey[600],
+            ),
+          ),
         ),
       ),
-      body: Consumer<RoiProvider>(
-        builder: (context, provider, child) {
-          return Stack(
-            children: [
-              selectedImageBytes == null
-                  ? Center(
-                      child: ElevatedButton(
-                        onPressed: _pickImage,
-                        child: const Text("Upload Image"),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<RoiProvider>(
+      builder: (context, provider, child) {
+        return Stack(
+          children: [
+            selectedImageBytes == null
+                ? Center(
+                    child: ElevatedButton(
+                      onPressed: _pickImage,
+                      child: const Text("Upload Image"),
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            provider.isROISelectionActive
-                                ? ROISelection(
-                                    imageBytes: selectedImageBytes!,
-                                    onROISelected: (croppedImg) async {
-                                      setState(() {
-                                        croppedImages = croppedImg;
-                                      });
-                                      provider.setLoading(true);
-                                      OCRService apiService = OCRService();
-                                      String extractedText = await apiService
-                                          .extractTextFromImageOcr(croppedImg);
-                                      provider
-                                          .processTextExtraction(extractedText);
-                                      provider.setLoading(false);
-                                    },
-                                    transformationController:
-                                        _transformationController,
-                                    rotationNotifier: _rotationNotifier,
-                                  )
-                                : _buildImageDisplay(),
-                            _buildControlButtons(),
-                          ],
-                        ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          provider.isROISelectionActive
+                              ? ROISelection(
+                                  imageBytes: selectedImageBytes!,
+                                  onROISelected: (croppedImg) async {
+                                    setState(() {
+                                      croppedImages = croppedImg;
+                                    });
+                                    provider.setLoading(true);
+                                    OCRService apiService = OCRService();
+                                    String extractedText = await apiService
+                                        .extractTextFromImageOcr(croppedImg);
+                                    provider
+                                        .processTextExtraction(extractedText);
+                                    provider.setLoading(false);
+                                  },
+                                  transformationController:
+                                      _transformationController,
+                                  rotationNotifier: _rotationNotifier,
+                                )
+                              : _buildImageDisplay(),
+                          _buildControlButtons(),
+                        ],
                       ),
                     ),
-              if (selectedImageBytes != null) _buildRotationControls(),
-              if (provider.isLoading) _buildLoadingIndicator(),
-            ],
-          );
-        },
-      ),
+                  ),
+            if (selectedImageBytes != null) _buildRotationControls(),
+            if (provider.isLoading) _buildLoadingIndicator(),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildControlButtons() {
     return Stack(
       children: [
-        Positioned(
-          bottom: 20,
-          right: 20,
-          child: FloatingActionButton(
-            heroTag: 'rotateButton',
-            onPressed: _rotateImage,
-            child: const Icon(Icons.rotate_right),
-          ),
-        ),
+        // Positioned(
+        //   bottom: 20,
+        //   right: 20,
+        //   child: FloatingActionButton(
+        //     heroTag: 'rotateButton',
+        //     onPressed: _rotateImage,
+        //     child: const Icon(Icons.rotate_right),
+        //   ),
+        // ),
         Positioned(
           top: 20,
           right: 20,

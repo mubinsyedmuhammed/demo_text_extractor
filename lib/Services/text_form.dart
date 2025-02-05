@@ -1,4 +1,3 @@
-
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/Services/const.dart';
 import 'package:flutter/material.dart';
@@ -93,26 +92,40 @@ class CustomFormState extends State<CustomForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding( 
-      padding: const EdgeInsets.all(16.0),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          children: [
-            _buildField("Name", nameController),
-            _buildField("Pincode", pincodeController),
-            _buildField("Phone", phoneController),
-            _buildField("Gender", genderController),
-            _buildField("Date of Birth", dobController),
-            _buildField("Address", addressController),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _submitForm,
-              child: const Text('Submit'),
-            ),
-          ],
+    return Column(
+      children: [
+        AppBar(
+          backgroundColor: Colors.white,
+          centerTitle: true,
+          title: const Text(
+            'Personal Information',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
-      ),
+        Expanded(
+          child: Padding( 
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                children: [
+                  _buildField("Name", nameController),
+                  _buildField("Pincode", pincodeController),
+                  _buildField("Phone", phoneController),
+                  _buildField("Gender", genderController),
+                  _buildField("Date of Birth", dobController),
+                  _buildField("Address", addressController),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _submitForm,
+                    child: const Text('Submit'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -150,7 +163,7 @@ class CustomFormState extends State<CustomForm> {
             ),
             IconButton(
               icon: Icon(
-                isActiveField ? Icons.close : Icons.crop,
+                isActiveField ? Icons.close : Icons.text_fields,
                 color: isActiveField ? Colors.red : Colors.blueGrey,
               ),
               onPressed: isActiveField
