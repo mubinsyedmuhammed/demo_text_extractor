@@ -1,14 +1,15 @@
-import 'dart:typed_data';
 import 'package:demo_text_extractor/Services/api_fast.dart';
 import 'package:demo_text_extractor/Services/getx.dart';
 import 'package:demo_text_extractor/Services/const.dart';
 import 'package:demo_text_extractor/screens/cropp.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:demo_text_extractor/screens/roi_selection.dart';
+import 'dart:async';
 
 class ImageUploader extends StatefulWidget {
   const ImageUploader({super.key});
@@ -28,6 +29,8 @@ class ImageUploaderState extends State<ImageUploader> {
 
   Uint8List? processedImageBytes;
   bool showProcessedImage = false;
+
+  static const _fineAdjustment = 1.0;
 
   Future<void> _pickImage() async {
     try {
@@ -125,6 +128,55 @@ class ImageUploaderState extends State<ImageUploader> {
     }
   }
 
+  // Add new method to handle stepping
+  double _getNextStep(double currentValue, bool up) {
+    const steps = [-180, -90, 0, 90, 180];
+    
+    if (up) {
+      for (var step in steps) {
+        if (step > currentValue) return step.toDouble();
+      }
+      return 180.0;
+    } else {
+      for (var step in steps.reversed) {
+        if (step < currentValue) return step.toDouble();
+      }
+      return -180.0;
+    }
+  }
+
+  // Update keyboard handler
+  void _handleKeyPress(RawKeyEvent event) {
+    if (!_showRotationSlider) return;
+
+    if (event is RawKeyDownEvent) {
+      switch (event.logicalKey.keyLabel) {
+        case 'Arrow Left':
+          setState(() {
+            _rotationNotifier.value = 
+                (_rotationNotifier.value - _fineAdjustment).clamp(-180, 180);
+          });
+          break;
+        case 'Arrow Right':
+          setState(() {
+            _rotationNotifier.value = 
+                (_rotationNotifier.value + _fineAdjustment).clamp(-180, 180);
+          });
+          break;
+        case 'Arrow Up':
+          setState(() {
+            _rotationNotifier.value = _getNextStep(_rotationNotifier.value, true);
+          });
+          break;
+        case 'Arrow Down':
+          setState(() {
+            _rotationNotifier.value = _getNextStep(_rotationNotifier.value, false);
+          });
+          break;
+      }
+    }
+  }
+
   Widget _buildImageDisplay() {
     return InteractiveViewer(
       transformationController: _transformationController,
@@ -142,77 +194,94 @@ class ImageUploaderState extends State<ImageUploader> {
       bottom: 80,
       left: 16,
       right: 16,
-      child: AnimatedOpacity(
-        opacity: _showRotationSlider ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 200),
-        child: Card(
-          elevation: 4,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Rotation'),
-                        const SizedBox(width: 8),
-                        // Quick angle buttons
-                        _buildAngleButton(-180),
-                        _buildAngleButton(-90),
-                         _buildAngleButton(0),
-                        _buildAngleButton(90),
-                         _buildAngleButton(180)
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Text('${_rotationNotifier.value.toStringAsFixed(1)}°'),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.restore, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          onPressed: () => _rotationNotifier.value = 0.0,
-                          tooltip: 'Reset rotation',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                ValueListenableBuilder<double>(
-                  valueListenable: _rotationNotifier,
-                  builder: (context, rotation, child) {
-                    return Column(
-                      children: [
-                        Slider(
-                          value: rotation,
-                          min: -180,
-                          max: 180,
-                          divisions: 360,
-                          label: '${rotation.round()}°',
-                          onChanged: (value) {
-                            _rotationNotifier.value = value;
-                          },
-                        ),
-                        // Angle markers
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('-180°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                            Text('-90°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                            Text('0°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                            Text('90°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                            Text('180°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+      // ignore: deprecated_member_use
+      child: RawKeyboardListener(
+        focusNode: FocusNode(),
+        autofocus: true,
+        onKey: _handleKeyPress,
+        child: AnimatedOpacity(
+          opacity: _showRotationSlider ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child: Card(
+            elevation: 4,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Text('Rotation'),
+                          const SizedBox(width: 8),
+                          // Quick angle buttons
+                          _buildAngleButton(-180),
+                          _buildAngleButton(-90),
+                          _buildAngleButton(0),
+                          _buildAngleButton(90),
+                          _buildAngleButton(180)
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          Text('${_rotationNotifier.value.toStringAsFixed(1)}°'),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.restore, size: 20),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => _rotationNotifier.value = 0.0,
+                            tooltip: 'Reset rotation',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  ValueListenableBuilder<double>(
+                    valueListenable: _rotationNotifier,
+                    builder: (context, rotation, child) {
+                      return Column(
+                        children: [
+                          Slider(
+                            value: rotation,
+                            min: -180,
+                            max: 180,
+                            divisions: 360,
+                            label: '${rotation.round()}°',
+                            onChanged: (value) {
+                              _rotationNotifier.value = value;
+                            },
+                          ),
+                          // Angle markers
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('-180°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                              Text('-90°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                              Text('0°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                              Text('90°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                              Text('180°', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                            ],
+                          ),
+                          // Add keyboard control hints
+                          if (_showRotationSlider) const Padding(
+                            padding: EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              '← → : Fine adjust (±1°)  |  ↑ ↓ : Jump to next/previous 90° step',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
